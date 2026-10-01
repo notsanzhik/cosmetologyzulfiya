@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790879585678,
+      "tag": "0000_overrated_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790887586825,
+      "tag": "0001_elite_karnak",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "timezone": "Asia/Almaty",
+  "slotMinutes": 15,
+  "bufferMinutes": 15,
+  "minLeadMinutes": 30,
+  "maxAdvanceDays": 60,
+  "maxDurationMinutes": 240,
+  "reminderHours": 3,
+  "holidays": ["2027-01-01", "2027-01-02"],
+  "workingHours": {
+    "0": [],
+    "1": [
+      ["10:00", "13:00"],
+      ["14:00", "19:00"]
+    ],
+    "2": [
+      ["10:00", "13:00"],
+      ["14:00", "19:00"]
+    ],
+    "3": [
+      ["10:00", "13:00"],
+      ["14:00", "19:00"]
+    ],
+    "4": [
+      ["10:00", "13:00"],
+      ["14:00", "19:00"]
+    ],
+    "5": [
+      ["10:00", "13:00"],
+      ["14:00", "19:00"]
+    ],
+    "6": [["10:00", "16:00"]]
+  },
+  "contact": {
+    "phone": "",
+    "whatsapp": "",
+    "instagram": "",
+    "mapEmbed": "https://maps.google.com/maps?q=Astana%20Kazakhstan&t=&z=12&ie=UTF8&iwloc=&output=embed"
+  },
+  "images": { "hero": "/images/hero.webp", "master": "" },
+  "certificates": []
+}

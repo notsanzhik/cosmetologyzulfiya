@@ -1,0 +1,1 @@
+ALTER TABLE `bookings` ADD `whatsapp_consent_at` integer;

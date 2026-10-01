@@ -1,0 +1,28 @@
+# Зависимости, результаты сборки и локальные базы
+node_modules/
+dist/
+coverage/
+.wrangler/
+.sites-runtime/
+.next/
+.vinext/
+*.tsbuildinfo
+
+# Секреты никогда не добавляются в Git, даже в приватный репозиторий
+.env*
+!.env.example
+.dev.vars*
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+*.db
+
+# Служебные файлы
+.agents/
+.codex/
+work/
+outputs/
+npm-debug.log*
+.DS_Store
+Thumbs.db

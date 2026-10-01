@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "astana-beauty",
+  "account_id": "12259d31ce3262569e3729996a3dd87a",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "astana-beauty-db",
+      "database_id": "aec11c1b-60c9-410b-ae4a-2150275f5d2e",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "keep_vars": true,
+  "observability": { "enabled": true },
+}
