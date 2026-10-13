@@ -22,6 +22,8 @@ import {
   Sparkles,
   LockKeyhole,
   LoaderCircle,
+  ArrowUpRight,
+  ArrowUp,
 } from "lucide-react";
 import {
   catalog,
@@ -38,7 +40,9 @@ import {
   type Snapshot,
 } from "./shared";
 import { ReviewsSection, AdminReviews } from "./reviews";
+import { useLandingMotion } from "./motion";
 import "./styles.css";
+import "./motion.css";
 
 type Runtime = {
   bookingEnabled: boolean;
@@ -110,7 +114,7 @@ function Header() {
   const { t } = useText();
   const [open, setOpen] = useState(false);
   return (
-    <header className="header">
+    <header className="header" id="top">
       <div className="container header-inner">
         <Brand />
         <nav className={open ? "nav open" : "nav"}>
@@ -135,6 +139,7 @@ function Header() {
           </button>
         </div>
       </div>
+      <div className="scroll-progress" aria-hidden="true" />
     </header>
   );
 }
@@ -164,6 +169,8 @@ function Hero() {
         </p>
       </div>
       <div className="hero-art">
+        <span className="hero-orb hero-orb-one" aria-hidden="true" />
+        <span className="hero-orb hero-orb-two" aria-hidden="true" />
         <img
           src={settings.images.hero}
           alt={t.hero.imageAlt}
@@ -868,17 +875,53 @@ function Footer() {
   const { t } = useText();
   return (
     <footer className="footer">
-      <div className="container footer-top">
-        <Brand />
-        <p>{t.footer.text}</p>
-        <a href="/privacy">{t.footer.privacy}</a>
-        <a href="/admin">{t.footer.admin}</a>
-      </div>
-      <div className="container footer-bottom">
-        © {new Date().getFullYear()} {t.brand}. {t.footer.copyright}
+      <span className="footer-orb footer-orb-one" aria-hidden="true" />
+      <span className="footer-orb footer-orb-two" aria-hidden="true" />
+      <div className="container footer-content">
+        <div className="footer-invitation">
+          <div>
+            <p className="eyebrow"><Sparkles size={15} aria-hidden="true" />{t.footer.eyebrow}</p>
+            <h2>{t.footer.title}<br /><em>{t.footer.accent}</em></h2>
+            <p className="footer-description">{t.footer.text}</p>
+          </div>
+          <a className="footer-book bubble-link" href="#services">
+            <ArrowUpRight size={32} strokeWidth={1.2} aria-hidden="true" />
+            <span>{t.services.submit}</span>
+          </a>
+        </div>
+        <div className="footer-links">
+          <div className="footer-location">
+            <span className="footer-label">{t.city} · {t.studio}</span>
+            <a href={settings.contact.mapUrl} target="_blank" rel="noreferrer">{t.contacts.address}<ArrowUpRight size={17} aria-hidden="true" /></a>
+          </div>
+          <nav className="footer-nav" aria-label={t.footer.navigation}>
+            {Object.entries(t.nav).map(([key, label]) => <a key={key} href={`#${key}`}>{label}</a>)}
+          </nav>
+          <div className="footer-social">
+            {settings.contact.whatsapp && <a className="footer-pill bubble-link" href={`https://wa.me/${settings.contact.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{t.contacts.whatsapp}<ArrowUpRight size={18} aria-hidden="true" /></a>}
+            {settings.contact.phone && <a className="footer-phone" href={`tel:${settings.contact.phone}`}>{maskPhone(settings.contact.phone)}</a>}
+          </div>
+        </div>
+        <div className="footer-wordmark-stage">
+          <span className="footer-wordmark">{t.brand}</span>
+        </div>
+        <div className="footer-bottom">
+          <span>© {new Date().getFullYear()} {t.brand} · {t.city}</span>
+          <div className="footer-legal"><a href="/privacy">{t.footer.privacy}</a><a href="/admin">{t.footer.admin}</a></div>
+          <a className="footer-back bubble-link" href="#top">{t.footer.backToTop}<ArrowUp size={16} aria-hidden="true" /></a>
+        </div>
       </div>
     </footer>
   );
+}
+function Landing({ runtime }: { runtime: Runtime | null }) {
+  const root = useRef<HTMLDivElement>(null);
+  useLandingMotion(root);
+  return <div className="landing-page" ref={root}>
+    <Header />
+    <main><Hero /><BookingSection runtime={runtime} /><About /><Reviews /><Contacts /></main>
+    <Footer />
+  </div>;
 }
 function Confirmation({ runtime }: { runtime: Runtime | null }) {
   const { t, lang } = useText();
@@ -1268,17 +1311,7 @@ function App() {
       ) : path === "/privacy" ? (
         <Privacy runtime={runtime} />
       ) : (
-        <>
-          <Header />
-          <main>
-            <Hero />
-            <BookingSection runtime={runtime} />
-            <About />
-            <Reviews />
-            <Contacts />
-          </main>
-          <Footer />
-        </>
+        <Landing runtime={runtime} />
       )}
     </Language.Provider>
   );
