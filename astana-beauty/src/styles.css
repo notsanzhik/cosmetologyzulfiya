@@ -1,4 +1,11 @@
-/* Один локальный шрифт включает русские и казахские буквы во всех начертаниях. */
+/* Локальные шрифты содержат русские и казахские буквы без подмены отдельных символов. */
+@font-face {
+  font-family: "Zulfiya Serif";
+  src: url("/fonts/lora.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+}
 @font-face {
   font-family: "Noto Sans";
   src: url("/fonts/noto-sans.woff2") format("woff2");
@@ -15,7 +22,7 @@
   --muted: #756c73;
   --line: #eee4e8;
   --soft: #fff8fa;
-  --display: "Noto Sans", Arial, sans-serif;
+  --display: "Zulfiya Serif", Georgia, serif;
   --sans: "Noto Sans", Arial, sans-serif;
 }
 * {
@@ -71,13 +78,13 @@ p {
 h1,
 h2 {
   font-family: var(--display);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.2;
   text-wrap: balance;
 }
 h1 {
-  font-size: clamp(2.4rem, 4.1vw, 4.25rem);
-  letter-spacing: -0.03em;
+  font-size: clamp(2.4rem, 4.1vw, 4.4rem);
+  letter-spacing: -0.035em;
 }
 h2 {
   font-size: clamp(2.1rem, 3.2vw, 3.3rem);
@@ -585,7 +592,7 @@ select:focus-visible {
   font-size: 1rem;
 }
 .sum strong {
-  font-family: var(--display);
+  font-family: var(--sans);
   font-size: 1.8rem;
   line-height: 1.2;
   max-width: 72%;
@@ -1212,7 +1219,7 @@ dialog > p {
 }
 .receipt-total strong {
   font-size: 1.6rem;
-  font-family: var(--display);
+  font-family: var(--sans);
   max-width: 72%;
   text-align: right;
   overflow-wrap: anywhere;
