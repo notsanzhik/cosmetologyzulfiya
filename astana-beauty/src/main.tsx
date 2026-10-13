@@ -114,7 +114,7 @@ function Header() {
   const { t } = useText();
   const [open, setOpen] = useState(false);
   return (
-    <header className="header" id="top">
+    <header className="header">
       <div className="container header-inner">
         <Brand />
         <nav className={open ? "nav open" : "nav"}>
@@ -917,7 +917,7 @@ function Footer() {
 function Landing({ runtime }: { runtime: Runtime | null }) {
   const root = useRef<HTMLDivElement>(null);
   useLandingMotion(root);
-  return <div className="landing-page" ref={root}>
+  return <div className="landing-page" id="top" ref={root}>
     <Header />
     <main><Hero /><BookingSection runtime={runtime} /><About /><Reviews /><Contacts /></main>
     <Footer />
