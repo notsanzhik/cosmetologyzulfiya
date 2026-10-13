@@ -51,7 +51,7 @@
 .footer-pill svg { flex-shrink: 0; }
 .footer-phone { font-size: .86rem; font-weight: 500; }
 .footer-wordmark-stage { display: grid; place-items: center; width: calc(100vw - 64px); margin-left: 50%; translate: -50% 0; padding: 28px 0 22px; min-height: 150px; }
-.footer-wordmark { display: block; width: max-content; font-family: var(--display); font-weight: 400; font-size: var(--wordmark-size, clamp(4rem, 25vw, 315px)); letter-spacing: -.055em; line-height: 1.18; text-align: center; white-space: nowrap; color: #8f3f5b; transform: scale(var(--wordmark-scale, 1)); transform-origin: center; transition: transform .4s var(--glide); }
+.footer-wordmark { display: block; width: max-content; font-family: var(--display); font-weight: 500; font-size: var(--wordmark-size, clamp(4rem, 25vw, 315px)); letter-spacing: -.055em; line-height: 1.18; text-align: center; white-space: nowrap; color: #8f3f5b; transform: scale(var(--wordmark-scale, 1)); transform-origin: center; transition: transform .4s var(--glide); }
 .footer-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px 28px; border-top: 1px solid #9c426124; padding-top: 23px; margin-top: 0; font-size: .7rem; color: #795565; }
 .footer-legal { display: flex; flex-wrap: wrap; gap: 24px; }
 .footer-back { display: inline-flex; align-items: center; gap: 9px; padding: 7px 12px; border: 1px solid #9c426124; border-radius: 999px; }
