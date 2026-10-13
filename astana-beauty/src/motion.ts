@@ -34,7 +34,7 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>) {
       const footer = page.querySelector<HTMLElement>(".footer");
       const progress = page.querySelector<HTMLElement>(".scroll-progress");
       const blocks = page.querySelectorAll<HTMLElement>(
-        ".section-heading, .category-tabs, .about-layout, .review-grid, .contact-layout > div, .footer-invitation, .footer-links",
+        ".section-heading, .category-tabs, .about-layout, .review-grid, .home-introduction, .discovery-card, .contact-layout > div, .footer-invitation, .footer-links",
       );
       page.classList.add("motion-enabled");
       const reveals = new IntersectionObserver(entries => {

@@ -62,7 +62,7 @@ export function ReviewsSection({ lang }: { lang: Lang }) {
   }
   return <section id="reviews" className="section reviews-section"><div className="container">
     <div className="section-heading centered"><p className="eyebrow">{t.reviews.eyebrow}</p>
-      <h2>{t.reviews.title} <em>{t.reviews.accent}</em></h2><p>{t.reviews.text}</p>
+      <h1>{t.reviews.title} <em>{t.reviews.accent}</em></h1><p>{t.reviews.text}</p>
       <button type="button" className="button secondary review-open" onClick={() => { setOpen(!open); setError(""); }}>{open ? f.close : f.leave}</button>
     </div>
     {open && <form className="review-form" onSubmit={submit}>

@@ -42,8 +42,10 @@ import {
 } from "./shared";
 import { ReviewsSection, AdminReviews } from "./reviews";
 import { useLandingMotion } from "./motion";
+import { normalizePath, publicPage, publicPages, type PublicPage } from "./routes";
 import "./styles.css";
 import "./motion.css";
+import "./pages.css";
 
 type Runtime = {
   bookingEnabled: boolean;
@@ -111,9 +113,8 @@ function Brand() {
     </a>
   );
 }
-function Header() {
+function Header({ active }: { active: PublicPage | null }) {
   const { t } = useText();
-  const [active, setActive] = useState("services");
   const [pointed, setPointed] = useState<string | null>(null);
   const nav = useRef<HTMLElement>(null);
   const [pill, setPill] = useState({ x: 0, y: 0, width: 0, height: 0 });
@@ -130,38 +131,27 @@ function Header() {
     element.querySelectorAll("a").forEach(link => resize.observe(link));
     return () => resize.disconnect();
   }, [pointed, active, t]);
-  useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries.find(entry => entry.isIntersecting);
-      if (visible) setActive(visible.target.id);
-    }, { rootMargin: "-20% 0px -60% 0px" });
-    Object.keys(t.nav).forEach(key => {
-      const section = document.getElementById(key);
-      if (section) observer.observe(section);
-    });
-    return () => observer.disconnect();
-  }, [t]);
   return (
     <header className="header">
       <div className="container header-inner">
         <Brand />
-        <nav ref={nav} id="main-navigation" className="nav"
+        <nav ref={nav} id="main-navigation" className="nav" aria-label={t.pages.navigation}
           onMouseLeave={() => setPointed(null)}
           onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setPointed(null); }}>
           {/* Одна общая подложка плавно переезжает между ссылками, сохраняя форму. */}
           <span className="nav-highlight" aria-hidden="true" style={{ width: pill.width, height: pill.height,
             transform: `translate(${pill.x}px, ${pill.y}px)`, opacity: pill.width ? 1 : 0 }} />
-          {Object.entries(t.nav).map(([key, label]) => (
-            <a key={key} data-nav-key={key} href={`/#${key}`} aria-current={active === key ? "location" : undefined}
+          {(Object.keys(publicPages) as PublicPage[]).map(key => (
+            <a key={key} data-nav-key={key} href={publicPages[key]} aria-current={active === key ? "page" : undefined}
               onMouseEnter={() => setPointed(key)} onFocus={() => setPointed(key)}
-              onClick={() => { setActive(key); setPointed(null); }}>
-              {label}
+              onClick={() => setPointed(null)}>
+              {t.nav[key]}
             </a>
           ))}
         </nav>
         <div className="header-controls">
           <LangSwitch />
-          <a className="button small header-book" href="#services">
+          <a className="button small header-book" href="/procedures">
             {t.services.submit}
             <span className="header-book-arrow"><ArrowUpRight size={19} aria-hidden="true" /></span>
           </a>
@@ -184,10 +174,10 @@ function Hero() {
         </h1>
         <p className="hero-description">{t.hero.text}</p>
         <div className="hero-actions">
-          <a className="button" href="#services">
+          <a className="button" href="/procedures">
             {t.hero.cta}
           </a>
-          <a className="text-link" href="#about">
+          <a className="text-link" href="/about">
             {t.hero.secondary}
           </a>
         </div>
@@ -280,10 +270,24 @@ function PricingNotes({ services }: { services: Snapshot[] }) {
     {services.some(p => p.placeholderPrice) && <p className="price-note">{t.services.priceNote}</p>}
   </>;
 }
+const cartKey = "dr-zulfiya-procedures";
+function savedSelection(): string[] {
+  try {
+    const saved: unknown = JSON.parse(sessionStorage.getItem(cartKey) || "[]");
+    if (!Array.isArray(saved)) return [];
+    let duration = 0;
+    return catalog.procedures.filter(p => {
+      if (!p.enabled || !saved.includes(p.id) || duration + p.duration > settings.maxDurationMinutes) return false;
+      duration += p.duration;
+      return true;
+    }).map(p => p.id);
+  } catch { return []; }
+}
 function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null; testMode?: boolean }) {
   const { t, lang } = useText();
+  const Heading = testMode ? "h2" : "h1";
   const [category, setCategory] = useState("all"),
-    [selected, setSelected] = useState<string[]>([]),
+    [selected, setSelected] = useState<string[]>(() => testMode ? [] : savedSelection()),
     [stage, setStage] = useState(false);
   const [date, setDate] = useState(localDate()),
     [start, setStart] = useState<number | null>(null);
@@ -305,6 +309,10 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
   const formRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [catalogVisible, setCatalogVisible] = useState(false);
+  useEffect(() => {
+    // Храним только выбор процедур на время вкладки, без имени и телефона.
+    if (!testMode) try { sessionStorage.setItem(cartKey, JSON.stringify(selected)); } catch { /* Приватный режим может запретить хранилище. */ }
+  }, [selected, testMode]);
   useEffect(() => {
     const observer = new IntersectionObserver(([entry]) => setCatalogVisible(entry.isIntersecting));
     if (sectionRef.current) observer.observe(sectionRef.current);
@@ -401,6 +409,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
           turnstile: captchaToken,
         }),
       );
+      if (!testMode) try { sessionStorage.removeItem(cartKey); } catch { /* Запись уже создана; отсутствие хранилища не мешает подтверждению. */ }
       window.location.assign(
         `/confirmation/${result.id}#token=${attempt.current.token}&lang=${lang}`,
       );
@@ -423,7 +432,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
         <div className="services-intro">
         <div className="section-heading">
           <p className="eyebrow">{t.services.eyebrow}</p>
-          <h2>{t.services.title}</h2>
+          <Heading>{t.services.title}</Heading>
           <p>{t.services.text}</p>
         </div>
           <ol className="booking-steps" aria-label={t.services.bookingSteps}>
@@ -757,11 +766,11 @@ function About() {
         </div>
         <div className="about-copy">
           <p className="eyebrow">{t.about.eyebrow}</p>
-          <h2>
+          <h1>
             {t.about.title}
             <br />
             <em>{t.about.accent}</em>
-          </h2>
+          </h1>
           <p>{t.about.text}</p>
           <ul className="principles">
             {t.about.principles.map((p, i) => (
@@ -771,7 +780,14 @@ function About() {
               </li>
             ))}
           </ul>
-          {certificates.length > 0 && <h3 className="cert-heading">{t.about.certificates}</h3>}
+          <div className="hero-actions">
+            <a className="button" href="/procedures">{t.hero.cta}</a>
+            <a className="text-link" href={`https://wa.me/${settings.contact.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{t.contacts.whatsapp}</a>
+          </div>
+        </div>
+      </div>
+      <div className="education-section" id="certificates">
+        <div className="section-heading"><p className="eyebrow">{t.pages.education}</p><h2>{t.about.certificates}</h2></div>
           {certificates.length ? (
             <div className="certificates">
               {certificates.map((c) => (
@@ -784,8 +800,7 @@ function About() {
                 </button>
               ))}
             </div>
-          ) : null}
-        </div>
+          ) : <div className="certificate-note"><ShieldCheck size={28} strokeWidth={1.3} aria-hidden="true" /><p>{t.about.certificateEmpty}</p></div>}
       </div>
       <dialog
         ref={dialog}
@@ -929,7 +944,7 @@ function Footer() {
             <h2>{t.footer.title}<br /><em>{t.footer.accent}</em></h2>
             <p className="footer-description">{t.footer.text}</p>
           </div>
-          <a className="footer-book bubble-link" href="#services">
+          <a className="footer-book bubble-link" href="/procedures">
             <ArrowUpRight size={32} strokeWidth={1.2} aria-hidden="true" />
             <span>{t.services.submit}</span>
           </a>
@@ -940,7 +955,8 @@ function Footer() {
             <a href={settings.contact.mapUrl} target="_blank" rel="noreferrer">{t.contacts.address}<ArrowUpRight size={17} aria-hidden="true" /></a>
           </div>
           <nav className="footer-nav" aria-label={t.footer.navigation}>
-            {Object.entries(t.nav).map(([key, label]) => <a key={key} href={`#${key}`}>{label}</a>)}
+            {(Object.keys(publicPages) as PublicPage[]).map(key => <a key={key} href={publicPages[key]}>{t.nav[key]}</a>)}
+            <a href="/#contacts">{t.nav.contacts}</a>
           </nav>
           <div className="footer-social">
             {settings.contact.whatsapp && <a className="footer-pill bubble-link" href={`https://wa.me/${settings.contact.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{t.contacts.whatsapp}<ArrowUpRight size={18} aria-hidden="true" /></a>}
@@ -959,12 +975,42 @@ function Footer() {
     </footer>
   );
 }
-function Landing({ runtime }: { runtime: Runtime | null }) {
+function HomeOverview() {
+  const { t } = useText();
+  const cards = [
+    { key: "services", icon: Flower2 },
+    { key: "about", icon: Leaf },
+    { key: "reviews", icon: Heart },
+  ] as const;
+  return <section className="home-overview section container">
+    <div className="home-introduction">
+      <div><p className="eyebrow">{t.pages.home.eyebrow}</p><h2>{t.pages.home.title}<br /><em>{t.pages.home.accent}</em></h2></div>
+      <div><p>{t.pages.home.text}</p><a className="location-chip" href="#contacts"><MapPin size={17} aria-hidden="true" />{t.pages.home.location}<ArrowUpRight size={17} aria-hidden="true" /></a></div>
+    </div>
+    <div className="discovery-grid">{cards.map(({ key, icon: Icon }, index) => <a className={`discovery-card discovery-${key}`} key={key} href={publicPages[key]}>
+      <div className="discovery-top"><span className="discovery-icon"><Icon size={27} strokeWidth={1.25} aria-hidden="true" /></span><span>0{index + 1}</span></div>
+      <h3>{t.pages.home[key].title}</h3><p>{t.pages.home[key].text}</p>
+      <span className="discovery-link">{t.pages.home[key].link}<ArrowUpRight size={21} aria-hidden="true" /></span>
+    </a>)}</div>
+  </section>;
+}
+function PublicSite({ runtime, page }: { runtime: Runtime | null; page: PublicPage | null }) {
+  const { t } = useText();
   const root = useRef<HTMLDivElement>(null);
   useLandingMotion(root);
-  return <div className="landing-page" id="top" ref={root}>
-    <Header />
-    <main><Hero /><BookingSection runtime={runtime} /><About /><Reviews /><Contacts /></main>
+  return <div className={`landing-page public-page page-${page || "missing"}`} id="top" ref={root}>
+    <a className="skip-link" href="#main-content">{t.pages.skip}</a>
+    <Header active={page} />
+    <main id="main-content">
+      {page && page !== "home" && <nav className="page-trail container" aria-label={t.pages.breadcrumb}>
+        <a href="/">{t.nav.home}</a><span aria-hidden="true">/</span><span aria-current="page">{t.nav[page]}</span>
+      </nav>}
+      {page === "home" ? <><Hero /><HomeOverview /><Contacts /></>
+        : page === "about" ? <About />
+        : page === "services" ? <BookingSection runtime={runtime} />
+        : page === "reviews" ? <Reviews />
+        : <section className="section container missing-page"><p className="eyebrow">404</p><h1>{t.pages.missing.title}</h1><p>{t.pages.missing.text}</p><a className="button" href="/">{t.nav.home}</a></section>}
+    </main>
     <Footer />
   </div>;
 }
@@ -1318,19 +1364,30 @@ function Privacy({ runtime }: { runtime: Runtime | null }) {
   );
 }
 function App() {
+  const path = normalizePath(location.pathname);
+  const page = publicPage(path);
   const initialLang =
     new URLSearchParams(location.hash.slice(1)).get("lang") ||
     localStorage.getItem("aru-language");
   const [lang, setLang] = useState<Lang>(initialLang === "kk" ? "kk" : "ru"),
     [runtime, setRuntime] = useState<Runtime | null>(null);
   useEffect(() => {
+    const followLegacyLink = () => {
+      const target = legacyDestination();
+      if (target) location.replace(target + location.search);
+    };
+    window.addEventListener("hashchange", followLegacyLink);
+    return () => window.removeEventListener("hashchange", followLegacyLink);
+  }, []);
+  useEffect(() => {
     document.documentElement.lang = lang;
     document
       .querySelector('meta[name="description"]')
-      ?.setAttribute("content", translations[lang].hero.text);
-    document.title = `${translations[lang].brand} · ${translations[lang].studio} · ${translations[lang].city}`;
+      ?.setAttribute("content", page ? translations[lang].pages.descriptions[page] : translations[lang].hero.text);
+    const title = page ? translations[lang].nav[page] : path === "/privacy" ? translations[lang].privacy.title : path.startsWith("/admin") ? translations[lang].admin.title : path.startsWith("/confirmation/") ? translations[lang].confirmation.title : translations[lang].pages.missing.title;
+    document.title = `${title} · ${translations[lang].brand} · ${translations[lang].city}`;
     localStorage.setItem("aru-language", lang);
-  }, [lang]);
+  }, [lang, page, path]);
   useEffect(() => {
     api<Runtime>(location.pathname === "/admin/test-booking" ? "/api/admin/test-config" : "/api/config")
       .then(setRuntime)
@@ -1344,7 +1401,6 @@ function App() {
         }),
       );
   }, []);
-  const path = location.pathname;
   return (
     <Language.Provider value={{ lang, setLang }}>
       {path.startsWith("/confirmation/") ? (
@@ -1356,12 +1412,18 @@ function App() {
       ) : path === "/privacy" ? (
         <Privacy runtime={runtime} />
       ) : (
-        <Landing runtime={runtime} />
+        <PublicSite runtime={runtime} page={page} />
       )}
     </Language.Provider>
   );
 }
-createRoot(document.getElementById("root")!).render(
+// Старые ссылки на секции сохраняют смысл после разделения сайта.
+function legacyDestination() {
+  return normalizePath(location.pathname) === "/" ? ({ "#services": "/procedures", "#about": "/about", "#reviews": "/reviews" } as Record<string, string>)[location.hash] : undefined;
+}
+const legacyPage = legacyDestination();
+if (legacyPage) location.replace(legacyPage + location.search);
+else createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,

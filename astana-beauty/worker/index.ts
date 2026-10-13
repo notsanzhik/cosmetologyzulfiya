@@ -27,6 +27,7 @@ import {
 import { processNotifications } from "./notifications";
 import { handleTelegram } from "./telegram";
 import { reviewApi } from "./reviews";
+import { isAppPath } from "../src/routes";
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -221,7 +222,13 @@ async function api(request: Request, env: Env, ctx: ExecutionContext) {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     if (!new URL(request.url).pathname.startsWith("/api/")) {
-      const response = await env.ASSETS.fetch(request);
+      const url = new URL(request.url);
+      const appPath = isAppPath(url.pathname);
+      // На прямой вход и обновление любой страницы отдаём оболочку приложения.
+      // Это не зависит от различий SPA fallback у Workers и Pages.
+      const assetUrl = new URL(url);
+      if (appPath) assetUrl.pathname = "/";
+      const response = await env.ASSETS.fetch(new Request(assetUrl, request));
       const headers = new Headers(response.headers);
       headers.set("Referrer-Policy", "no-referrer");
       headers.set("X-Content-Type-Options", "nosniff");
@@ -230,7 +237,8 @@ export default {
         "Permissions-Policy",
         "camera=(), microphone=(), geolocation=()",
       );
-      return new Response(response.body, { status: response.status, headers });
+      const html = response.headers.get("Content-Type")?.includes("text/html");
+      return new Response(response.body, { status: html && !appPath ? 404 : response.status, headers });
     }
     try {
       return await api(request, env, ctx);

@@ -18,6 +18,33 @@ import { handleTelegram } from "../worker/telegram";
 import worker from "../worker/index";
 import type { Env } from "../worker/types";
 
+test("public page deep links load the app, missing pages are 404, assets and API stay separate", async () => {
+  const env = environment();
+  const seen: string[] = [];
+  env.ASSETS = { fetch: async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    seen.push(path);
+    return new Response(path === "/fonts/example.woff2" ? "font" : "<div id='root'></div>", {
+      headers: { "Content-Type": path.endsWith(".woff2") ? "font/woff2" : "text/html" },
+    });
+  } } as unknown as Fetcher;
+  const ctx = { waitUntil() {} } as unknown as ExecutionContext;
+  for (const path of ["/", "/about", "/about/", "/procedures", "/reviews", "/privacy", "/admin", "/admin/test-booking", "/confirmation/example"]) {
+    const result = await worker.fetch(new Request(`https://example.com${path}`), env, ctx);
+    assert.equal(result.status, 200, path);
+    assert.equal(seen.at(-1), "/", path);
+    assert.match(await result.text(), /id='root'/);
+  }
+  assert.equal((await worker.fetch(new Request("https://example.com/missing"), env, ctx)).status, 404);
+  const font = await worker.fetch(new Request("https://example.com/fonts/example.woff2"), env, ctx);
+  assert.equal(font.status, 200);
+  assert.equal(await font.text(), "font");
+  const count = seen.length;
+  const config = await worker.fetch(new Request("https://example.com/api/config"), env, ctx);
+  assert.equal(config.status, 200);
+  assert.equal(seen.length, count);
+});
+
 // Реальная SQLite с теми же SQL и транзакциями, что D1; внешние API заменены.
 function database() {
   const sqlite = new DatabaseSync(":memory:");
