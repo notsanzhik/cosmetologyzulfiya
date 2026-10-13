@@ -11,7 +11,6 @@ import {
   Clock3,
   MapPin,
   Phone,
-  Menu,
   X,
   Plus,
   Minus,
@@ -112,7 +111,6 @@ function Brand() {
 }
 function Header() {
   const { t } = useText();
-  const [open, setOpen] = useState(false);
   const [active, setActive] = useState("services");
   const [pointed, setPointed] = useState<string | null>(null);
   const nav = useRef<HTMLElement>(null);
@@ -129,7 +127,7 @@ function Header() {
     resize.observe(element);
     element.querySelectorAll("a").forEach(link => resize.observe(link));
     return () => resize.disconnect();
-  }, [pointed, active, t, open]);
+  }, [pointed, active, t]);
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
       const visible = entries.find(entry => entry.isIntersecting);
@@ -145,7 +143,7 @@ function Header() {
     <header className="header">
       <div className="container header-inner">
         <Brand />
-        <nav ref={nav} id="main-navigation" className={open ? "nav open" : "nav"}
+        <nav ref={nav} id="main-navigation" className="nav"
           onMouseLeave={() => setPointed(null)}
           onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setPointed(null); }}>
           {/* Одна общая подложка плавно переезжает между ссылками, сохраняя форму. */}
@@ -154,7 +152,7 @@ function Header() {
           {Object.entries(t.nav).map(([key, label]) => (
             <a key={key} data-nav-key={key} href={`/#${key}`} aria-current={active === key ? "location" : undefined}
               onMouseEnter={() => setPointed(key)} onFocus={() => setPointed(key)}
-              onClick={() => { setActive(key); setPointed(null); setOpen(false); }}>
+              onClick={() => { setActive(key); setPointed(null); }}>
               {label}
             </a>
           ))}
@@ -165,15 +163,6 @@ function Header() {
             {t.services.submit}
             <span className="header-book-arrow"><ArrowUpRight size={19} aria-hidden="true" /></span>
           </a>
-          <button
-            className="icon-button mobile-menu"
-            aria-label={open ? t.about.close : t.services.selection}
-            aria-expanded={open}
-            aria-controls="main-navigation"
-            onClick={() => setOpen(!open)}
-          >
-            {open ? <X /> : <Menu />}
-          </button>
         </div>
       </div>
       <div className="scroll-progress" aria-hidden="true" />

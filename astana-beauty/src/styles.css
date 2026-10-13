@@ -1851,18 +1851,23 @@ dialog > p {
 .header-book-arrow { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: #ffffff20; }
 .landing-page .header .scroll-progress { left: 40px; width: calc(100% - 80px); bottom: 0; height: 1px; opacity: .45; }
 @media (max-width: 1150px) {
-  .landing-page .header .nav { display: none; }
-  .landing-page .header .mobile-menu { display: inline-flex; }
-  .landing-page .header .nav.open { display: flex; flex-direction: column; position: absolute; top: calc(100% + 10px); left: 0; right: 0; padding: 12px; gap: 4px; border: 1px solid var(--line); border-radius: 28px; background: #fffffffa; box-shadow: 0 18px 40px #75465b12; }
-  .landing-page .header .nav.open a { padding: 13px 20px; }
-  .landing-page .header .nav-highlight { display: none; }
-  .landing-page .header .nav a[aria-current], .landing-page .header .nav a:hover { background: var(--soft); }
+  html { scroll-padding-top: 170px; }
+  .landing-page .header { border-radius: 32px; }
+  .landing-page .header-inner { flex-wrap: wrap; row-gap: 8px; }
+  .landing-page .header .nav { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; order: 3; width: 100%; }
+  .landing-page .header .nav a { min-height: 44px; display: flex; align-items: center; justify-content: center; }
 }
 @media (max-width: 600px) {
   .landing-page .header { top: 10px; width: calc(100% - 20px); margin-top: 10px; }
-  .landing-page .header-inner { min-height: 74px; padding: 10px 14px 10px 20px; gap: 10px; }
+  .landing-page .header-inner { min-height: 74px; padding: 12px 14px 8px; gap: 8px; }
   .landing-page .header .brand > span { font-size: 1.9rem; }
   .landing-page .header .brand small { font-size: .54rem; }
   .landing-page .header-controls { gap: 10px; }
   .landing-page .header .header-book { display: none; }
+  .landing-page .header .nav { grid-template-columns: 1.2fr 1.1fr .8fr 1fr; padding: 2px 0; gap: 0; font-size: .7rem; }
+  .landing-page .header .nav a { padding: 9px 5px; }
+}
+@media (max-width: 380px) {
+  html { scroll-padding-top: 215px; }
+  .landing-page .header .nav { grid-template-columns: repeat(2, 1fr); font-size: .78rem; }
 }
