@@ -113,13 +113,48 @@ function Brand() {
 function Header() {
   const { t } = useText();
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState("services");
+  const [pointed, setPointed] = useState<string | null>(null);
+  const nav = useRef<HTMLElement>(null);
+  const [pill, setPill] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  useEffect(() => {
+    const element = nav.current;
+    if (!element) return;
+    const measure = () => {
+      const link = element.querySelector<HTMLElement>(`[data-nav-key="${pointed || active}"]`);
+      if (link) setPill({ x: link.offsetLeft, y: link.offsetTop, width: link.offsetWidth, height: link.offsetHeight });
+    };
+    measure();
+    const resize = new ResizeObserver(measure);
+    resize.observe(element);
+    element.querySelectorAll("a").forEach(link => resize.observe(link));
+    return () => resize.disconnect();
+  }, [pointed, active, t, open]);
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.find(entry => entry.isIntersecting);
+      if (visible) setActive(visible.target.id);
+    }, { rootMargin: "-20% 0px -60% 0px" });
+    Object.keys(t.nav).forEach(key => {
+      const section = document.getElementById(key);
+      if (section) observer.observe(section);
+    });
+    return () => observer.disconnect();
+  }, [t]);
   return (
     <header className="header">
       <div className="container header-inner">
         <Brand />
-        <nav className={open ? "nav open" : "nav"}>
+        <nav ref={nav} id="main-navigation" className={open ? "nav open" : "nav"}
+          onMouseLeave={() => setPointed(null)}
+          onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setPointed(null); }}>
+          {/* Одна общая подложка плавно переезжает между ссылками, сохраняя форму. */}
+          <span className="nav-highlight" aria-hidden="true" style={{ width: pill.width, height: pill.height,
+            transform: `translate(${pill.x}px, ${pill.y}px)`, opacity: pill.width ? 1 : 0 }} />
           {Object.entries(t.nav).map(([key, label]) => (
-            <a key={key} href={`/#${key}`} onClick={() => setOpen(false)}>
+            <a key={key} data-nav-key={key} href={`/#${key}`} aria-current={active === key ? "location" : undefined}
+              onMouseEnter={() => setPointed(key)} onFocus={() => setPointed(key)}
+              onClick={() => { setActive(key); setPointed(null); setOpen(false); }}>
               {label}
             </a>
           ))}
@@ -128,11 +163,13 @@ function Header() {
           <LangSwitch />
           <a className="button small header-book" href="#services">
             {t.services.submit}
+            <span className="header-book-arrow"><ArrowUpRight size={19} aria-hidden="true" /></span>
           </a>
           <button
             className="icon-button mobile-menu"
             aria-label={open ? t.about.close : t.services.selection}
             aria-expanded={open}
+            aria-controls="main-navigation"
             onClick={() => setOpen(!open)}
           >
             {open ? <X /> : <Menu />}

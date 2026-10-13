@@ -1836,3 +1836,33 @@ dialog > p {
   gap: 14px;
   margin-bottom: 28px;
 }
+
+/* Плавающая шапка и единая скользящая подсветка меню. */
+.landing-page .header { top: 18px; width: min(1400px, calc(100% - 48px)); margin: 18px auto 0; border: 1px solid #fff; border-radius: 999px; background: #fffffff0; box-shadow: 0 8px 36px #75465b0c, inset 0 1px 0 #fff; }
+.landing-page .header-inner { width: 100%; min-height: 90px; padding: 12px 18px 12px 30px; gap: 20px; }
+.landing-page .header .brand > span { font-size: 2.25rem; }
+.landing-page .header .brand small { font-size: .63rem; margin-top: 3px; }
+.landing-page .header .nav { position: relative; gap: 3px; padding: 4px; font-size: .82rem; }
+.landing-page .header .nav a { position: relative; z-index: 1; padding: 12px 15px; border-radius: 999px; white-space: nowrap; transform: none; }
+.landing-page .header .nav a[aria-current] { color: var(--deep); }
+.nav-highlight { position: absolute; top: 0; left: 0; pointer-events: none; border-radius: 999px; background: linear-gradient(140deg, #fff3f7, #f8e2eb); box-shadow: inset 0 1px 0 #fff, 0 4px 14px #9c426108; transition: transform .48s cubic-bezier(.22, 1, .36, 1), width .48s cubic-bezier(.22, 1, .36, 1), height .3s ease, opacity .2s; }
+.landing-page .header-controls { gap: 20px; }
+.landing-page .header .header-book { padding: 7px 8px 7px 20px; min-height: 52px; gap: 15px; background: #9c4261; border-color: #9c4261; color: white; }
+.header-book-arrow { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: #ffffff20; }
+.landing-page .header .scroll-progress { left: 40px; width: calc(100% - 80px); bottom: 0; height: 1px; opacity: .45; }
+@media (max-width: 1150px) {
+  .landing-page .header .nav { display: none; }
+  .landing-page .header .mobile-menu { display: inline-flex; }
+  .landing-page .header .nav.open { display: flex; flex-direction: column; position: absolute; top: calc(100% + 10px); left: 0; right: 0; padding: 12px; gap: 4px; border: 1px solid var(--line); border-radius: 28px; background: #fffffffa; box-shadow: 0 18px 40px #75465b12; }
+  .landing-page .header .nav.open a { padding: 13px 20px; }
+  .landing-page .header .nav-highlight { display: none; }
+  .landing-page .header .nav a[aria-current], .landing-page .header .nav a:hover { background: var(--soft); }
+}
+@media (max-width: 600px) {
+  .landing-page .header { top: 10px; width: calc(100% - 20px); margin-top: 10px; }
+  .landing-page .header-inner { min-height: 74px; padding: 10px 14px 10px 20px; gap: 10px; }
+  .landing-page .header .brand > span { font-size: 1.9rem; }
+  .landing-page .header .brand small { font-size: .54rem; }
+  .landing-page .header-controls { gap: 10px; }
+  .landing-page .header .header-book { display: none; }
+}
