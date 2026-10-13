@@ -37,7 +37,7 @@
 .footer-orb-two { width: 180px; height: 180px; bottom: 90px; left: -110px; }
 .footer-invitation { display: flex; align-items: center; justify-content: space-between; gap: 50px; padding-bottom: 55px; }
 .footer-invitation .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: .69rem; letter-spacing: .18em; }
-.footer-invitation h2 { font-size: clamp(3rem, 5.5vw, 5.2rem); line-height: 1.09; letter-spacing: -.045em; }
+.footer-invitation h2 { font-size: clamp(2.7rem, 4.8vw, 4.6rem); line-height: 1.18; letter-spacing: -.03em; }
 .footer-description { margin-top: 23px; font-size: .9rem; color: #805b6a; }
 .footer-book { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; width: 170px; height: 170px; flex-shrink: 0; border-radius: 50%; border: 1px solid #ffffffd9; background: radial-gradient(circle at 32% 25%, #fff 0%, #fff4f8 40%, #f4b6c8 100%); box-shadow: inset -7px -8px 16px #e58fae25, 0 20px 45px #9c426115; font-size: .9rem; font-weight: 600; }
 .footer-book svg { transition: transform .45s var(--spring); }
@@ -51,7 +51,7 @@
 .footer-pill svg { flex-shrink: 0; }
 .footer-phone { font-size: .86rem; font-weight: 500; }
 .footer-wordmark-stage { display: grid; place-items: center; width: calc(100vw - 64px); margin-left: 50%; translate: -50% 0; padding: 28px 0 22px; min-height: 150px; }
-.footer-wordmark { display: block; width: max-content; font-family: var(--serif); font-weight: 400; font-size: var(--wordmark-size, clamp(4rem, 25vw, 315px)); letter-spacing: -.055em; line-height: 1.18; text-align: center; white-space: nowrap; color: #8f3f5b; transform: scale(var(--wordmark-scale, 1)); transform-origin: center; transition: transform .4s var(--glide); }
+.footer-wordmark { display: block; width: max-content; font-family: var(--display); font-weight: 400; font-size: var(--wordmark-size, clamp(4rem, 25vw, 315px)); letter-spacing: -.055em; line-height: 1.18; text-align: center; white-space: nowrap; color: #8f3f5b; transform: scale(var(--wordmark-scale, 1)); transform-origin: center; transition: transform .4s var(--glide); }
 .footer-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px 28px; border-top: 1px solid #9c426124; padding-top: 23px; margin-top: 0; font-size: .7rem; color: #795565; }
 .footer-legal { display: flex; flex-wrap: wrap; gap: 24px; }
 .footer-back { display: inline-flex; align-items: center; gap: 9px; padding: 7px 12px; border: 1px solid #9c426124; border-radius: 999px; }
@@ -79,7 +79,7 @@
   .hero-orb-two { width: 34px; height: 34px; right: 10px; bottom: 100px; }
   .footer { margin-top: 12px; border-radius: 60px 60px 0 0; padding: 60px 0 22px; }
   .footer-invitation { display: block; padding-bottom: 32px; }
-  .footer-invitation h2 { font-size: clamp(2.8rem, 11.5vw, 4rem); }
+  .footer-invitation h2 { font-size: clamp(2rem, 8.5vw, 3rem); }
   .footer-invitation .eyebrow { font-size: .6rem; letter-spacing: .12em; }
   .footer-description { max-width: 250px; font-size: .82rem; margin-top: 18px; }
   .footer-book { width: 112px; height: 112px; margin: 26px 0 0 auto; gap: 7px; font-size: .8rem; }
