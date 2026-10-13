@@ -1,14 +1,14 @@
 # dr.zulfiya — косметология в Шымкенте
 
-Сайт: https://astana-beauty.notsanzhik.workers.dev  
-Админка: https://astana-beauty.notsanzhik.workers.dev/admin  
+Сайт: https://dr-zulfiya-shym.pages.dev  
+Админка: https://dr-zulfiya-shym.pages.dev/admin  
 Приватный код: https://github.com/notsanzhik/cosmetologyzulfiya
 
-Техническое имя `astana-beauty` сохранено для совместимости с уже созданными Worker, базой и ботом. На сайте указаны Шымкент и dr.zulfiya.
+Сайт опубликован в проекте Cloudflare Pages `dr-zulfiya-shym`. Техническое имя `astana-beauty` сохранено у фонового Worker и базы. На сайте указаны Шымкент и dr.zulfiya.
 
 ## Устройство сайта
 
-React + TypeScript + Vite показывают интерфейс. Cloudflare Worker проверяет данные, Cloudflare D1 хранит записи, занятые интервалы, отзывы и очередь Telegram. База локально работает через Wrangler — устанавливать отдельную СУБД не нужно.
+React + TypeScript + Vite показывают интерфейс. Cloudflare Pages запускает тот же сервер в режиме Advanced mode: он проверяет данные, а Cloudflare D1 хранит записи, занятые интервалы, отзывы и очередь Telegram. Отдельный Worker обслуживает очередь по cron каждые пять минут. Оба используют одну облачную базу. База локально работает через Wrangler — устанавливать отдельную СУБД не нужно.
 
 Клиент собирает корзину процедур, выбирает дату и свободное время, указывает имя и телефон. Пока календарь выделяет **60 минут на каждую процедуру** и 15 минут между визитами. Длительность клиентам не показывается. На один визит можно выбрать до четырёх процедур. Проверка пересечений выполняется на сервере: запись и уникальные 15-минутные интервалы сохраняются одной транзакцией, при конфликте всё откатывается.
 
@@ -20,7 +20,7 @@ Telegram присылает имя, телефон, процедуры, нача
 
 ## Расходы
 
-Используется существующий бесплатный тариф Cloudflare в рамках его квот. Текущие ограничения смотрите в [Workers](https://developers.cloudflare.com/workers/platform/pricing/) и [D1](https://developers.cloudflare.com/d1/platform/pricing/). Отдельный домен необязателен: адрес `workers.dev` работает. Для обычных Telegram-уведомлений отдельного платного сервиса нет. Автоматизация платного WhatsApp удалена.
+Используется существующий бесплатный тариф Cloudflare в рамках его квот. Текущие ограничения смотрите в [Pages Functions](https://developers.cloudflare.com/pages/functions/pricing/) и [D1](https://developers.cloudflare.com/d1/platform/pricing/). Покупать домен для адреса `dr-zulfiya-shym.pages.dev` не нужно. Для обычных Telegram-уведомлений отдельного платного сервиса нет. Автоматизация платного WhatsApp удалена.
 
 ## Запуск для новичка
 
@@ -47,25 +47,38 @@ npm run dev
 
 ## Cloudflare и деплой
 
-Текущий аккаунт и D1 уже настроены. Для переноса в другой аккаунт:
-
-1. Зарегистрируйтесь на https://dash.cloudflare.com/, выберите Workers Free.
-2. Выполните `npx wrangler login`, завершите вход в браузере.
-3. Выполните `npx wrangler d1 create astana-beauty-db`.
-4. В `wrangler.jsonc` замените `account_id` и `database_id` на свои. Оставьте `binding: "DB"`. При необходимости измените имя Worker.
-5. Примените все миграции: `npm run db:remote`.
-6. В Cloudflare откройте Worker → **Settings → Variables and Secrets**. Создайте Secrets из `.env.example`: `ADMIN_PASSWORD`, `SESSION_SECRET`, `CRON_SECRET`, `TELEGRAM_WEBHOOK_SECRET`, затем секреты Telegram. Пароль — минимум 16 символов, остальные случайные секреты — минимум 32. Не используйте примерные значения.
-7. Укажите `SITE_URL` с адресом своего сайта, `BOOKING_ENABLED=true` и `NOTIFICATIONS_ENABLED=true`.
-8. Выполните:
+Текущие проекты Pages, Worker, секреты и D1 уже настроены. Для обновления из папки `astana-beauty`:
 
 ```sh
 npm run typecheck
 npm test
-npm run build
+npm run db:remote
+npm run build:pages
 npm run deploy
+npm run deploy:pages
 ```
 
-В конфиге стоит `keep_vars: true`: деплой сохраняет переменные из Cloudflare. После публикации проверьте их. Публичная запись работает только при `BOOKING_ENABLED=true`.
+`deploy` обновляет фоновый Worker, `deploy:pages` — публичный сайт. `build:pages` собирает сервер и интерфейс, затем готовит `dist/pages` и отдельную конфигурацию Pages. Не загружайте `dist/server` как статические файлы: локальная сборка может содержать `.dev.vars`. Скрипт Pages переносит только интерфейс и серверный JavaScript.
+
+Для переноса в другой аккаунт:
+
+1. Зарегистрируйтесь на https://dash.cloudflare.com/, выберите Workers Free.
+2. Выполните `npx wrangler login --scopes account:read user:read workers_scripts:write d1:write pages:write`, завершите вход и нажмите Authorize в браузере.
+3. Выполните `npx wrangler d1 create astana-beauty-db`.
+4. В `wrangler.jsonc` замените `account_id` и `database_id` на свои. В `pages/wrangler.jsonc` укажите тот же `database_id`, свободное имя проекта и его `SITE_URL`. Поле `account_id` в конфиг Pages не добавляйте. Оставьте `binding: "DB"`. В скрипте `deploy:pages` файла `package.json` замените имя проекта на своё.
+5. Примените все миграции: `npm run db:remote`.
+6. Создайте Worker командами `npm run build:pages` и `npm run deploy`. Затем создайте проект Pages: `npx wrangler pages project create ВАШЕ-ИМЯ --production-branch main`.
+7. В Cloudflare откройте Worker → **Settings → Variables and Secrets**, затем аналогичный раздел проекта Pages. В обоих проектах задайте одинаковые Secrets из `.env.example`: `ADMIN_PASSWORD`, `SESSION_SECRET`, `CRON_SECRET`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_OWNER_ID`. Для Pages выберите окружение Production. Пароль — минимум 16 символов, остальные случайные секреты — минимум 32. Не используйте примерные значения.
+8. В переменных Worker укажите `SITE_URL` с адресом Pages, `BOOKING_ENABLED=true` и `NOTIFICATIONS_ENABLED=true`. У Pages эти три значения задаются в `pages/wrangler.jsonc`. Затем выполните:
+
+```sh
+npm run typecheck
+npm test
+npm run build:pages
+npm run deploy:pages
+```
+
+В конфиге Worker стоит `keep_vars: true`: деплой сохраняет переменные из Cloudflare. После публикации проверьте сайт и зарегистрируйте Telegram webhook на адрес Pages по инструкции ниже. Публичная запись работает только при `BOOKING_ENABLED=true`. Сохраняйте одинаковые Telegram-секреты у Pages и Worker при их изменении.
 
 ## Telegram
 

@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "dr-zulfiya-shym",
+  "pages_build_output_dir": "../dist/pages",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "astana-beauty-db",
+    "database_id": "aec11c1b-60c9-410b-ae4a-2150275f5d2e"
+  }],
+  "vars": {
+    "BOOKING_ENABLED": "true",
+    "NOTIFICATIONS_ENABLED": "true",
+    "SITE_URL": "https://dr-zulfiya-shym.pages.dev"
+  }
+}

@@ -9,13 +9,15 @@
     "install:ci": "node scripts/install-ci.mjs",
     "dev": "vite",
     "build": "vite build",
+    "build:pages": "vite build && node scripts/prepare-pages.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
     "db:local": "wrangler d1 migrations apply astana-beauty-db --local",
     "db:remote": "wrangler d1 migrations apply astana-beauty-db --remote",
-    "deploy": "wrangler deploy --config dist/server/wrangler.json"
+    "deploy": "wrangler deploy --config dist/server/wrangler.json",
+    "deploy:pages": "wrangler pages deploy --cwd pages --project-name dr-zulfiya-shym --branch main"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

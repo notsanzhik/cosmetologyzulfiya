@@ -250,7 +250,7 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ) {
-    // Origin хранится для callback Twilio; задаётся после деплоя в конфиге окружения.
+    // Адрес сайта задаётся в окружении; cron обслуживает только очередь Telegram.
     const origin = (env as Env & { SITE_URL?: string }).SITE_URL;
     if (!origin) {
       console.error("cron_requires_SITE_URL");

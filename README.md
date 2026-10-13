@@ -1,8 +1,8 @@
 # dr.zulfiya — косметология в Шымкенте
 
-[Сайт](https://astana-beauty.notsanzhik.workers.dev) · [Админка](https://astana-beauty.notsanzhik.workers.dev/admin) · [Инструкция для новичка](START_HERE.md)
+[Сайт](https://dr-zulfiya-shym.pages.dev) · [Админка](https://dr-zulfiya-shym.pages.dev/admin) · [Инструкция для новичка](START_HERE.md)
 
-React, TypeScript, Vite, Cloudflare Worker и D1. Русский и казахский интерфейс, 16 процедур с начальной стоимостью, корзина, выбор даты и свободного времени, защищённая админка, Telegram и отзывы с модерацией.
+React, TypeScript, Vite, Cloudflare Pages и D1. Worker обслуживает очередь Telegram по cron. Русский и казахский интерфейс, 16 процедур с начальной стоимостью, корзина, выбор даты и свободного времени, защищённая админка, Telegram и отзывы с модерацией.
 
 Кабинет: Шымкент, ул. Жангельдина, 16; ориентир — аптека «Рецепт», 2-й этаж, кабинет 108. WhatsApp кабинета: +7 701 352 84 85.
 
