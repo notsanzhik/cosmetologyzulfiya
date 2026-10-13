@@ -1,4 +1,4 @@
-import { translations, money, dateLabel } from "../src/shared";
+import { translations, totalLabel, dateLabel } from "../src/shared";
 import type { Env, Notification, Booking } from "./types";
 import { serviceSnapshot } from "./types";
 import { findBooking, finishCancellation } from "./bookings";
@@ -25,15 +25,6 @@ export async function telegram(
   if (!response.ok || !result.ok) throw new Error("telegram_rejected");
   return result.result;
 }
-function template(env: Env, n: Notification, b: Booking) {
-  return n.kind === "reminder"
-    ? b.lang === "kk"
-      ? env.TWILIO_REMINDER_KK
-      : env.TWILIO_REMINDER_RU
-    : b.lang === "kk"
-      ? env.TWILIO_CANCEL_KK
-      : env.TWILIO_CANCEL_RU;
-}
 export async function dispatch(
   env: Env,
   n: Notification,
@@ -55,7 +46,7 @@ export async function dispatch(
       .map((p) => p.name.ru)
       .join(
         ", ",
-      )}\n${t.total}: ${money(b.total, "ru")}\n${t.date}: ${dateLabel(b.start_at, "ru")}`;
+      )}\n${t.total}: ${totalLabel(serviceSnapshot(b), "ru", b.total)}\n${t.date}: ${dateLabel(b.start_at, "ru")}`;
     const result = await telegram(
       env,
       "sendMessage",
@@ -70,51 +61,8 @@ export async function dispatch(
     );
     return { status: "sent", providerId: String(result?.message_id || "") };
   }
-  // Даже сохранённые ранее задачи не вызывают платный API при выключенном канале.
-  if (env.WHATSAPP_ENABLED !== "true" || b.whatsapp_consent_at == null)
-    return { status: "disabled" };
-  const contentSid = template(env, n, b);
-  if (
-    !env.TWILIO_ACCOUNT_SID ||
-    !env.TWILIO_AUTH_TOKEN ||
-    !env.TWILIO_WHATSAPP_FROM ||
-    !contentSid
-  )
-    return { status: "failed", error: "whatsapp_not_configured" };
-  const services = serviceSnapshot(b)
-    .map((p) => p.name[b.lang])
-    .join(", ");
-  const params = new URLSearchParams({
-    From: env.TWILIO_WHATSAPP_FROM,
-    To: `whatsapp:${b.phone}`,
-    ContentSid: contentSid,
-    ContentVariables: JSON.stringify({
-      "1": b.name,
-      "2": dateLabel(b.start_at, b.lang),
-      "3": services,
-    }),
-    StatusCallback: `${origin}/api/twilio/status?id=${encodeURIComponent(n.id)}`,
-  });
-  const response = await fetcher(
-    `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${btoa(env.TWILIO_ACCOUNT_SID + ":" + env.TWILIO_AUTH_TOKEN)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params,
-      signal: AbortSignal.timeout(12000),
-    },
-  );
-  const result = (await response.json()) as { sid?: string; code?: number };
-  if (!response.ok)
-    return {
-      status: response.status >= 500 ? "uncertain" : "failed",
-      error: `twilio_${result.code || response.status}`,
-    };
-  if (!result.sid) return { status: "uncertain", error: "twilio_missing_sid" };
-  return { status: "sent", providerId: result.sid };
+  // WhatsApp-автоматизация снята: даже старые задачи не вызывают платные API.
+  return { status: "disabled" };
 }
 
 export async function processNotifications(
@@ -123,6 +71,7 @@ export async function processNotifications(
   fetcher: typeof fetch = fetch,
 ) {
   const now = Date.now();
+  await env.DB.prepare("UPDATE notifications SET status='disabled' WHERE kind!='telegram' AND status IN ('pending','sending')").run();
   // Процесс мог завершиться после отправки, но до сохранения ответа.
   // Безопасный выбор: не повторять неопределённую отправку автоматически.
   await env.DB.prepare(

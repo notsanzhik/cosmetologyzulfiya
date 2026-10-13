@@ -2,138 +2,327 @@
   "categories": [
     {
       "id": "cleansing",
-      "label": { "ru": "Чистки лица", "kk": "Бетті тазарту" }
+      "label": {
+        "ru": "Чистка лица",
+        "kk": "Бет тазалау"
+      }
     },
-    { "id": "peeling", "label": { "ru": "Пилинги", "kk": "Пилингтер" } },
-    { "id": "care", "label": { "ru": "Уход за кожей", "kk": "Тері күтімі" } },
-    { "id": "injections", "label": { "ru": "Инъекции", "kk": "Инъекциялар" } },
-    { "id": "massage", "label": { "ru": "Массаж лица", "kk": "Бет массажы" } }
+    {
+      "id": "injections",
+      "label": {
+        "ru": "Инъекционная косметология",
+        "kk": "Инъекциялық косметология"
+      }
+    },
+    {
+      "id": "contouring",
+      "label": {
+        "ru": "Контурная пластика",
+        "kk": "Контурлық пластика"
+      }
+    },
+    {
+      "id": "peeling",
+      "label": {
+        "ru": "Пилинги",
+        "kk": "Пилингтер"
+      }
+    },
+    {
+      "id": "additional",
+      "label": {
+        "ru": "Дополнительные процедуры",
+        "kk": "Қосымша процедуралар"
+      }
+    }
   ],
   "procedures": [
     {
-      "id": "ultrasound",
+      "id": "nine-step-cleansing",
       "category": "cleansing",
-      "name": { "ru": "Ультразвуковая чистка", "kk": "Ультрадыбыстық тазарту" },
-      "description": {
-        "ru": "Деликатное очищение кожи и завершающая успокаивающая маска.",
-        "kk": "Теріні нәзік тазарту және тыныштандыратын маска."
-      },
-      "duration": 60,
-      "price": 12000,
-      "placeholderPrice": true,
-      "enabled": true
-    },
-    {
-      "id": "combined",
-      "category": "cleansing",
-      "name": { "ru": "Комбинированная чистка", "kk": "Аралас тазарту" },
-      "description": {
-        "ru": "Очищение в несколько этапов с уходом по типу кожи.",
-        "kk": "Тері түріне сай күтіммен бірнеше кезеңді тазарту."
-      },
-      "duration": 90,
-      "price": 18000,
-      "placeholderPrice": true,
-      "enabled": true
-    },
-    {
-      "id": "almond",
-      "category": "peeling",
-      "name": { "ru": "Миндальный пилинг", "kk": "Бадам пилингі" },
-      "description": {
-        "ru": "Поверхностный пилинг. Подходит после консультации мастера.",
-        "kk": "Үстірт пилинг. Маман кеңесінен кейін жасалады."
-      },
-      "duration": 45,
-      "price": 15000,
-      "placeholderPrice": true,
-      "enabled": true
-    },
-    {
-      "id": "enzyme",
-      "category": "peeling",
-      "name": { "ru": "Энзимный пилинг", "kk": "Энзимді пилинг" },
-      "description": {
-        "ru": "Мягкое обновление кожи с увлажняющим завершением.",
-        "kk": "Ылғалдандырумен аяқталатын жұмсақ тері жаңарту."
-      },
-      "duration": 45,
-      "price": 10000,
-      "placeholderPrice": true,
-      "enabled": true
-    },
-    {
-      "id": "hydration",
-      "category": "care",
-      "name": { "ru": "Глубокое увлажнение", "kk": "Терең ылғалдандыру" },
-      "description": {
-        "ru": "Сыворотка, маска и уход для ощущения комфорта кожи.",
-        "kk": "Терінің жайлылығы үшін сарысу, маска және күтім."
-      },
-      "duration": 60,
-      "price": 16000,
-      "placeholderPrice": true,
-      "enabled": true
-    },
-    {
-      "id": "sensitive",
-      "category": "care",
       "name": {
-        "ru": "Уход для чувствительной кожи",
-        "kk": "Сезімтал тері күтімі"
+        "ru": "9-этапная чистка",
+        "kk": "9 кезеңді бет тазалау"
       },
       "description": {
-        "ru": "Бережная программа с индивидуальным подбором средств.",
-        "kk": "Құралдар жеке таңдалатын ұқыпты күтім бағдарламасы."
+        "ru": "Чистка лица в девять этапов.",
+        "kk": "Тоғыз кезеңнен тұратын бет тазалау."
       },
       "duration": 60,
-      "price": 17000,
-      "placeholderPrice": true,
+      "durationConfirmed": true,
+      "price": 8000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "plasmolifting",
+      "category": "injections",
+      "name": {
+        "ru": "Плазмолифтинг",
+        "kk": "Плазмолифтинг"
+      },
+      "description": {
+        "ru": "Объём процедуры уточняется на консультации.",
+        "kk": "Процедура көлемі кеңес кезінде нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 15000,
+      "priceType": "from",
+      "placeholderPrice": false,
       "enabled": true
     },
     {
       "id": "biorevitalization",
       "category": "injections",
       "name": {
-        "ru": "Биоревитализация · консультация",
-        "kk": "Биоревитализация · кеңес"
+        "ru": "Биоревитализация",
+        "kk": "Биоревитализация"
       },
       "description": {
-        "ru": "Сначала очная консультация. Возможность процедуры и препарат определяет специалист.",
-        "kk": "Алдымен жеке кеңес. Процедура мүмкіндігі мен препаратты маман анықтайды."
+        "ru": "Препарат и объём процедуры согласовываются с косметологом.",
+        "kk": "Препарат пен процедура көлемі косметологпен келісіледі."
       },
       "duration": 60,
-      "price": 45000,
-      "placeholderPrice": true,
-      "enabled": false
-    },
-    {
-      "id": "massage",
-      "category": "massage",
-      "name": {
-        "ru": "Классический массаж лица",
-        "kk": "Классикалық бет массажы"
-      },
-      "description": {
-        "ru": "Мягкие массажные техники для расслабления и приятного отдыха.",
-        "kk": "Босаңсу мен жайлы демалысқа арналған жұмсақ массаж."
-      },
-      "duration": 45,
-      "price": 10000,
-      "placeholderPrice": true,
+      "durationConfirmed": true,
+      "price": 20000,
+      "priceType": "from",
+      "placeholderPrice": false,
       "enabled": true
     },
     {
-      "id": "sculptural",
-      "category": "massage",
-      "name": { "ru": "Скульптурный массаж", "kk": "Мүсіндік массаж" },
+      "id": "mesotherapy",
+      "category": "injections",
+      "name": {
+        "ru": "Мезотерапия лица, вокруг глаз, кистей рук и кожи головы",
+        "kk": "Бетке, көз айналасына, қол басына және бас терісіне мезотерапия"
+      },
       "description": {
-        "ru": "Проработка мышц лица и шеи с учётом индивидуальных особенностей.",
-        "kk": "Жеке ерекшеліктерге сай бет пен мойын бұлшықеттеріне массаж."
+        "ru": "Зона и объём процедуры уточняются на консультации.",
+        "kk": "Аймақ пен процедура көлемі кеңес кезінде нақтыланады."
       },
       "duration": 60,
-      "price": 14000,
-      "placeholderPrice": true,
+      "durationConfirmed": true,
+      "price": 15000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "lipolytics",
+      "category": "injections",
+      "name": {
+        "ru": "Липолитики",
+        "kk": "Липолитиктер"
+      },
+      "description": {
+        "ru": "Объём и стоимость согласовываются с косметологом.",
+        "kk": "Көлемі мен құны косметологпен келісіледі."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 15000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "microneedling",
+      "category": "injections",
+      "name": {
+        "ru": "Микронидлинг (фракционная мезотерапия)",
+        "kk": "Микронидлинг (фракциялық мезотерапия)"
+      },
+      "description": {
+        "ru": "Детали процедуры уточняются на консультации.",
+        "kk": "Процедураның егжей-тегжейі кеңес кезінде нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 15000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "botulinum-therapy",
+      "category": "injections",
+      "name": {
+        "ru": "Ботулинотерапия (3 зоны)",
+        "kk": "Ботулинотерапия (3 аймақ)"
+      },
+      "description": {
+        "ru": "Начальная стоимость за три зоны.",
+        "kk": "Үш аймаққа арналған бастапқы баға."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 25000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "mesothreads",
+      "category": "injections",
+      "name": {
+        "ru": "Мезонити",
+        "kk": "Мезожіптер"
+      },
+      "description": {
+        "ru": "Объём процедуры и окончательная стоимость уточняются у косметолога.",
+        "kk": "Процедура көлемі мен соңғы құны косметологтан нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 1000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "contour-lips",
+      "category": "contouring",
+      "name": {
+        "ru": "Губы (Neuramis Deep)",
+        "kk": "Ерінге көлем беру және пішінін түзету (Neuramis Deep)"
+      },
+      "description": {
+        "ru": "Стоимость зависит от выбранного препарата.",
+        "kk": "Құны таңдалған препаратқа байланысты."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 30000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "contour-chin",
+      "category": "contouring",
+      "name": {
+        "ru": "Подбородок",
+        "kk": "Иек коррекциясы"
+      },
+      "description": {
+        "ru": "Стоимость зависит от выбранного препарата.",
+        "kk": "Құны таңдалған препаратқа байланысты."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 30000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "contour-tear-trough",
+      "category": "contouring",
+      "name": {
+        "ru": "Носослёзная борозда",
+        "kk": "Көз асты жүлгесін түзету"
+      },
+      "description": {
+        "ru": "Стоимость зависит от выбранного препарата.",
+        "kk": "Құны таңдалған препаратқа байланысты."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 30000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "contour-nasolabial",
+      "category": "contouring",
+      "name": {
+        "ru": "Носогубные складки",
+        "kk": "Мұрын-ерін қатпарларын түзету"
+      },
+      "description": {
+        "ru": "Стоимость зависит от выбранного препарата.",
+        "kk": "Құны таңдалған препаратқа байланысты."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 30000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "chemical-peel",
+      "category": "peeling",
+      "name": {
+        "ru": "Химический пилинг",
+        "kk": "Химиялық пилинг"
+      },
+      "description": {
+        "ru": "Детали процедуры уточняются на консультации.",
+        "kk": "Процедураның егжей-тегжейі кеңес кезінде нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 5000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "yellow-peel",
+      "category": "peeling",
+      "name": {
+        "ru": "Жёлтый пилинг",
+        "kk": "Сары пилинг"
+      },
+      "description": {
+        "ru": "Детали процедуры уточняются на консультации.",
+        "kk": "Процедураның егжей-тегжейі кеңес кезінде нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 10000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "cinderella-infusion",
+      "category": "additional",
+      "name": {
+        "ru": "Капельница «Золушка»",
+        "kk": "«Золушка» тамшылатқышы"
+      },
+      "description": {
+        "ru": "Состав и длительность процедуры уточняются на консультации.",
+        "kk": "Процедура құрамы мен ұзақтығы кеңес кезінде нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": 15000,
+      "priceType": "from",
+      "placeholderPrice": false,
+      "enabled": true
+    },
+    {
+      "id": "papilloma-removal",
+      "category": "additional",
+      "name": {
+        "ru": "Удаление папиллом и бородавок",
+        "kk": "Папилломалар мен сүйелдерді алып тастау"
+      },
+      "description": {
+        "ru": "Стоимость уточняется индивидуально.",
+        "kk": "Бағасы жеке нақтыланады."
+      },
+      "duration": 60,
+      "durationConfirmed": true,
+      "price": null,
+      "priceType": "on_request",
+      "placeholderPrice": false,
       "enabled": true
     }
   ]

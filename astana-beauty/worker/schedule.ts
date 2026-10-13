@@ -26,9 +26,12 @@ export function selectedProcedures(ids: unknown): Procedure[] {
   if (
     procedures.some(
       (p) =>
-        p.duration <= 0 ||
+        !Number.isSafeInteger(p.duration) || p.duration <= 0 ||
         p.duration % settings.slotMinutes !== 0 ||
-        p.price < 0,
+        ![undefined, "fixed", "from", "on_request"].includes(p.priceType) ||
+        (p.price === null
+          ? p.priceType !== "on_request"
+          : !Number.isSafeInteger(p.price) || p.price < 0 || p.priceType === "on_request"),
     )
   )
     throw new AppError("setup", 503);

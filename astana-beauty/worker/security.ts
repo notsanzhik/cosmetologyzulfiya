@@ -42,13 +42,32 @@ export function checkOrigin(request: Request) {
   if (!origin || origin !== new URL(request.url).origin)
     throw new AppError("forbidden", 403);
 }
-export async function jsonBody(request: Request) {
+export async function jsonBody(request: Request, maxBytes = 12000) {
   if (!request.headers.get("content-type")?.includes("application/json"))
     throw new AppError("invalid");
-  const body = await request.text();
-  if (body.length > 12000) throw new AppError("invalid", 413);
+  // Ограничиваем поток, а не только готовый текст: лимит действует и без Content-Length.
+  const reader = request.body?.getReader();
+  if (!reader) throw new AppError("invalid");
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  while (true) {
+    const result = await reader.read();
+    if (result.done) break;
+    bytes += result.value.byteLength;
+    if (bytes > maxBytes) {
+      await reader.cancel();
+      throw new AppError("invalid", 413);
+    }
+    chunks.push(result.value);
+  }
+  const all = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) { all.set(chunk, offset); offset += chunk.byteLength; }
+  const body = new TextDecoder().decode(all);
   try {
-    return JSON.parse(body);
+    const parsed = JSON.parse(body);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new AppError("invalid");
+    return parsed;
   } catch {
     throw new AppError("invalid");
   }

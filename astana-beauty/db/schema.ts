@@ -77,3 +77,15 @@ export const confirmations = sqliteTable("cancel_confirmations", {
   bookingId: text("booking_id").notNull(),
   expiresAt: integer("expires_at").notNull(),
 });
+
+export const reviews = sqliteTable("reviews", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  body: text("body").notNull(),
+  lang: text("lang").notNull(),
+  status: text("status").notNull().default("pending"),
+  imageData: text("image_data"),
+  imageType: text("image_type"),
+  createdAt: integer("created_at").notNull(),
+  consentAt: integer("consent_at").notNull(),
+});

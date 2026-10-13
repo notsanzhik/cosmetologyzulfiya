@@ -26,6 +26,7 @@ import {
 } from "./bookings";
 import { processNotifications } from "./notifications";
 import { handleTelegram } from "./telegram";
+import { reviewApi } from "./reviews";
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -42,7 +43,7 @@ function runtimeConfig(env: Env) {
   return {
     bookingEnabled: env.BOOKING_ENABLED === "true",
     notificationsEnabled: env.NOTIFICATIONS_ENABLED === "true",
-    whatsappEnabled: env.NOTIFICATIONS_ENABLED === "true" && env.WHATSAPP_ENABLED === "true",
+    whatsappEnabled: false,
     turnstileSiteKey: env.TURNSTILE_SITE_KEY || "",
     adminConfigured: adminConfigured(env),
   };
@@ -52,6 +53,8 @@ async function api(request: Request, env: Env, ctx: ExecutionContext) {
     path = url.pathname,
     method = request.method;
   if (!env.DB) throw new AppError("setup", 503);
+  const reviewResponse = await reviewApi(request, env);
+  if (reviewResponse) return reviewResponse;
   if (path === "/api/config" && method === "GET")
     return json(runtimeConfig(env));
   if (path === "/api/slots" && method === "GET") {
@@ -198,46 +201,6 @@ async function api(request: Request, env: Env, ctx: ExecutionContext) {
       ),
     );
     return json({ ok: true });
-  }
-  if (path === "/api/twilio/status" && method === "POST") {
-    if (!env.TWILIO_AUTH_TOKEN) throw new AppError("forbidden", 403);
-    const body = await request.text();
-    if (body.length > 12000) throw new AppError("invalid");
-    const form = new URLSearchParams(body);
-    const signed =
-      request.url +
-      [...new Set(form.keys())]
-        .sort()
-        .map((key) =>
-          [...new Set(form.getAll(key))]
-            .sort()
-            .map((v) => key + v)
-            .join(""),
-        )
-        .join("");
-    if (
-      !(await equalSecret(
-        request.headers.get("x-twilio-signature") || "",
-        await sign(signed, env.TWILIO_AUTH_TOKEN, "SHA-1"),
-      ))
-    )
-      throw new AppError("forbidden", 403);
-    const sid = form.get("MessageSid"),
-      delivery = form.get("MessageStatus");
-    if (
-      sid &&
-      ["queued", "sent", "delivered", "read", "failed", "undelivered"].includes(
-        delivery || "",
-      )
-    ) {
-      // Поздний статус sent не должен перезаписать delivered или read.
-      await env.DB.prepare(
-        "UPDATE notifications SET provider_id=COALESCE(provider_id,?),delivery=? WHERE id=? AND (provider_id IS NULL OR provider_id=?) AND (delivery IS NULL OR delivery NOT IN ('delivered','read') OR ?='read')",
-      )
-        .bind(sid, delivery, url.searchParams.get("id"), sid, delivery)
-        .run();
-    }
-    return new Response(null, { status: 204 });
   }
   if (path === "/api/cron" && method === "POST") {
     if (

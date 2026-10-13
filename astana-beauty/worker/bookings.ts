@@ -1,4 +1,4 @@
-import { settings, localDate, type Lang } from "../src/shared";
+import { settings, localDate, totalAmount, type Lang } from "../src/shared";
 import type { Env, Booking } from "./types";
 import {
   AppError,
@@ -47,8 +47,7 @@ export async function createBooking(
   if (body.consent !== true) throw new AppError("consent");
   if (body.whatsappConsent != null && typeof body.whatsappConsent !== "boolean")
     throw new AppError("invalid");
-  const whatsappConsent = env.NOTIFICATIONS_ENABLED === "true" &&
-    env.WHATSAPP_ENABLED === "true" && body.whatsappConsent === true;
+  const whatsappConsent = false;
   if (body.website) throw new AppError("invalid");
   if (typeof body.token !== "string" || !/^[a-f0-9]{64}$/.test(body.token))
     throw new AppError("invalid");
@@ -56,16 +55,18 @@ export async function createBooking(
     throw new AppError("invalid");
   const procedures = selectedProcedures(body.procedureIds);
   const snapshot = procedures.map(
-    ({ id, name, duration, price, placeholderPrice }) => ({
+    ({ id, name, duration, durationConfirmed, price, priceType, placeholderPrice }) => ({
       id,
       name,
       duration,
+      durationConfirmed,
       price,
+      priceType,
       placeholderPrice,
     }),
   );
   const duration = procedures.reduce((n, p) => n + p.duration, 0),
-    total = procedures.reduce((n, p) => n + p.price, 0);
+    total = totalAmount(procedures);
   const tokenHash = await sha256(body.token);
   const requestHash = await sha256(
     JSON.stringify([
@@ -126,22 +127,9 @@ export async function createBooking(
       ).bind(at, id),
     );
   const notificationsEnabled = env.NOTIFICATIONS_ENABLED === "true";
-  for (const [kind, due] of [
-    ["telegram", now],
-    ["reminder", Math.max(now, body.start - settings.reminderHours * 3600000)],
-  ] as const) {
-    statements.push(
-      env.DB.prepare(
-        "INSERT INTO notifications (id,booking_id,kind,status,due_at) VALUES (?,?,?,?,?)",
-      ).bind(
-        crypto.randomUUID(),
-        id,
-        kind,
-        notificationsEnabled && (kind === "telegram" || whatsappConsent) ? "pending" : "disabled",
-        due,
-      ),
-    );
-  }
+  statements.push(env.DB.prepare("INSERT INTO notifications (id,booking_id,kind,status,due_at) VALUES (?,?,?,?,?)")
+    .bind(crypto.randomUUID(), id, "telegram", notificationsEnabled ? "pending" : "disabled", now));
+
   try {
     await env.DB.batch(statements);
   } catch (error) {
@@ -169,12 +157,6 @@ export async function finishCancellation(env: Env, id?: string) {
     ),
     env.DB.prepare(
       "UPDATE notifications SET status='skipped' WHERE kind='reminder' AND status='pending' AND booking_id IN (SELECT id FROM bookings WHERE status!='confirmed')",
-    ),
-    env.DB.prepare(
-      "INSERT OR IGNORE INTO notifications (id,booking_id,kind,status,due_at) SELECT 'cancel:'||id,id,'cancel',CASE WHEN ?=1 AND whatsapp_consent_at IS NOT NULL THEN 'pending' ELSE 'disabled' END,? FROM bookings WHERE status='cancelled'",
-    ).bind(
-      env.NOTIFICATIONS_ENABLED === "true" && env.WHATSAPP_ENABLED === "true" ? 1 : 0,
-      Date.now(),
     ),
   ]);
 }

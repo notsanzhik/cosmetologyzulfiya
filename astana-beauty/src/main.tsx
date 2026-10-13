@@ -27,14 +27,17 @@ import {
   catalog,
   settings,
   translations,
-  money,
+  priceLabel,
+  totalLabel,
+  totalAmount,
   dateLabel,
   localDate,
   maskPhone,
   type Lang,
   type PublicBooking,
+  type Snapshot,
 } from "./shared";
-import reviews from "../data/reviews.json";
+import { ReviewsSection, AdminReviews } from "./reviews";
 import "./styles.css";
 
 type Runtime = {
@@ -98,7 +101,6 @@ function Brand() {
     <a className="brand" href="/">
       <span>
         {t.brand}
-        <i>.</i>
       </span>
       <small>{t.studio}</small>
     </a>
@@ -173,7 +175,7 @@ function Hero() {
           <Sparkles size={20} />
           <span>{t.hero.caption}</span>
         </div>
-        <span className="vertical-label">ARU · ASTANA</span>
+        <span className="vertical-label">{t.brand} · {t.city}</span>
       </div>
     </section>
   );
@@ -235,6 +237,14 @@ function Captcha({
   }, [siteKey, onToken, generation]);
   return <div ref={holder} className="captcha" />;
 }
+function PricingNotes({ services }: { services: Snapshot[] }) {
+  const { t } = useText();
+  return <>
+    {services.some(p => p.priceType === "from") && <p className="price-note">{t.pricing.minimumNote}</p>}
+    {services.some(p => p.price === null || p.priceType === "on_request") && <p className="price-note">{t.pricing.onRequestNote}</p>}
+    {services.some(p => p.placeholderPrice) && <p className="price-note">{t.services.priceNote}</p>}
+  </>;
+}
 function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null; testMode?: boolean }) {
   const { t, lang } = useText();
   const [category, setCategory] = useState("all"),
@@ -259,7 +269,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
   const attempt = useRef<{ key: string; token: string } | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const services = catalog.procedures.filter((p) => selected.includes(p.id));
-  const total = services.reduce((n, p) => n + p.price, 0),
+  const total = totalAmount(services),
     duration = services.reduce((n, p) => n + p.duration, 0);
   const ids = selected.join(",");
   useEffect(() => {
@@ -420,11 +430,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                     <h3>{p.name[lang]}</h3>
                     <p>{p.description[lang]}</p>
                     <div className="procedure-bottom">
-                      <span>
-                        <Clock3 size={14} />
-                        {p.duration} {t.services.minutes}
-                      </span>
-                      <strong>{money(p.price, lang)}</strong>
+                      <strong>{priceLabel(p, lang)}</strong>
                     </div>
                     <small>
                       {p.enabled
@@ -451,9 +457,6 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                   <li key={p.id}>
                     <span>
                       {p.name[lang]}
-                      <small>
-                        {p.duration} {t.services.minutes}
-                      </small>
                     </span>
                     <button
                       className="icon-button"
@@ -469,15 +472,9 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
               <p className="empty-selection">{t.services.empty}</p>
             )}
             <div className="totals">
-              <div>
-                <span>{t.services.duration}</span>
-                <strong>
-                  {duration} {t.services.minutes}
-                </strong>
-              </div>
               <div className="sum">
                 <span>{t.services.total}</span>
-                <strong>{money(total, lang)}</strong>
+                <strong>{totalLabel(services, lang, total)}</strong>
               </div>
             </div>
             <button
@@ -492,9 +489,8 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
             {duration > settings.maxDurationMinutes && (
               <p className="error">{t.errors.tooLong}</p>
             )}
-            {services.some((p) => p.placeholderPrice) && (
-              <p className="price-note">{t.services.priceNote}</p>
-            )}
+            <a className="button secondary full question-button" href={`https://wa.me/${settings.contact.whatsapp}`} target="_blank" rel="noreferrer"><Phone size={16} />{t.services.question}</a>
+            <PricingNotes services={services} />
             <p className="summary-security">
               <ShieldCheck size={15} />
               {t.services.timezone}
@@ -653,7 +649,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                   >
                     {sending
                       ? t.services.sending
-                      : `${t.services.submit} · ${money(total, lang)}`}
+                      : `${t.services.submit} · ${totalLabel(services, lang, total)}`}
                   </button>
                   {runtime && !runtime.bookingEnabled && (
                     <p className="muted">{t.errors.bookingDisabled}</p>
@@ -697,7 +693,7 @@ function About() {
           ) : (
             <div className="photo-placeholder">
               <span>
-                A<i>.</i>
+                {t.brandMark}
               </span>
               <p>{t.about.photo}</p>
             </div>
@@ -723,7 +719,7 @@ function About() {
               </li>
             ))}
           </ul>
-          <h3 className="cert-heading">{t.about.certificates}</h3>
+          {certificates.length > 0 && <h3 className="cert-heading">{t.about.certificates}</h3>}
           {certificates.length ? (
             <div className="certificates">
               {certificates.map((c) => (
@@ -736,12 +732,7 @@ function About() {
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="certificate-empty">
-              <ShieldCheck size={20} />
-              {t.about.certificateEmpty}
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
       <dialog
@@ -769,38 +760,10 @@ function About() {
   );
 }
 function Reviews() {
-  const { t, lang } = useText();
-  return (
-    <section id="reviews" className="section reviews-section">
-      <div className="container">
-        <div className="section-heading centered">
-          <p className="eyebrow">{t.reviews.eyebrow}</p>
-          <h2>
-            {t.reviews.title} <em>{t.reviews.accent}</em>
-          </h2>
-          <p>{t.reviews.text}</p>
-        </div>
-        <div className="review-grid">
-          {reviews.map((r) => (
-            <article className="review" key={r.id}>
-              <span className="quote-mark" aria-hidden="true">
-                “
-              </span>
-              <p>{r.text[lang]}</p>
-              <div className="review-person">
-                <span className="avatar">{r.name.slice(0, 1)}</span>
-                <div>
-                  <strong>{r.name}</strong>
-                  <small>{r.sample ? t.reviews.sample : r.date}</small>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+  const { lang } = useText();
+  return <ReviewsSection lang={lang} />;
 }
+
 function Contacts() {
   const { t } = useText();
   const hours = Object.entries(settings.workingHours);
@@ -823,7 +786,7 @@ function Contacts() {
               <small>{t.contacts.phoneTitle}</small>
               {settings.contact.phone ? (
                 <a href={`tel:${settings.contact.phone}`}>
-                  {settings.contact.phone}
+                  {maskPhone(settings.contact.phone)}
                 </a>
               ) : (
                 <p>{t.contacts.missingPhone}</p>
@@ -890,7 +853,7 @@ function Contacts() {
           </p>
           <a
             className="map-link"
-            href="https://www.google.com/maps/search/?api=1&query=Astana"
+            href={settings.contact.mapUrl}
             target="_blank"
             rel="noreferrer"
           >
@@ -968,18 +931,16 @@ function Confirmation({ runtime }: { runtime: Runtime | null }) {
                 <li key={p.id}>
                   <span>
                     {p.name[lang]}
-                    <small>
-                      {p.duration} {t.services.minutes}
-                    </small>
                   </span>
-                  <strong>{money(p.price, lang)}</strong>
+                  <strong>{priceLabel(p, lang)}</strong>
                 </li>
               ))}
             </ul>
             <div className="receipt-total">
               <span>{t.services.total}</span>
-              <strong>{money(booking.total, lang)}</strong>
+              <strong>{totalLabel(booking.services, lang, booking.total)}</strong>
             </div>
+            <PricingNotes services={booking.services} />
             {booking.status === "confirmed" && (
               <p className="muted">
                 {runtime?.whatsappEnabled && booking.whatsappConsent
@@ -1175,7 +1136,7 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
                   </p>
                   <p>{b.services.map((p) => p.name[lang]).join(", ")}</p>
                   <strong>
-                    {money(b.total, lang)} · {b.duration} {t.services.minutes}
+                    {totalLabel(b.services, lang, b.total)}
                   </strong>
                   <div className="notice-list">
                     {b.notifications.map((n) => (
@@ -1225,6 +1186,7 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
             </div>
           </>
         )}
+        {loggedIn && <AdminReviews lang={lang} />}
         <a className="text-link" href="/">
           {t.admin.home}
         </a>

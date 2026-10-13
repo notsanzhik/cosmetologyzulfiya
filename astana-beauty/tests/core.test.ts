@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { readdirSync } from "node:fs";
-import { settings, localDate, dateLabel, money } from "../src/shared";
+import { settings, localDate, dateLabel, money, catalog, priceLabel, totalLabel } from "../src/shared";
 import {
   selectedProcedures,
   candidateSlots,
@@ -16,7 +16,6 @@ import { createBooking, cancelBooking, findBooking } from "../worker/bookings";
 import { processNotifications } from "../worker/notifications";
 import { handleTelegram } from "../worker/telegram";
 import worker from "../worker/index";
-import { sign } from "../worker/security";
 import type { Env } from "../worker/types";
 
 // Реальная SQLite с теми же SQL и транзакциями, что D1; внешние API заменены.
@@ -103,7 +102,7 @@ const payload = (start: number, token = "a".repeat(64)) => ({
   phone: "+77011234567",
   lang: "ru",
   start,
-  procedureIds: ["ultrasound"],
+  procedureIds: ["nine-step-cleansing"],
   consent: true,
   whatsappConsent: true,
   website: "",
@@ -135,18 +134,58 @@ test("RU and KZ dates use translated months and Astana time, independent of loca
   assert.equal(money(27000, "ru"), money(27000, "kk"));
 });
 test("server rejects duplicate, disabled and invented procedure IDs", () => {
+  const procedure = catalog.procedures.find(p => p.id === "biorevitalization")!;
+  procedure.enabled = false;
+  try { assert.throws(() => selectedProcedures([procedure.id]), AppError); }
+  finally { procedure.enabled = true; }
   for (const ids of [
-    ["ultrasound", "ultrasound"],
+    ["nine-step-cleansing", "nine-step-cleansing"],
     ["fake"],
-    ["biorevitalization"],
     [],
   ])
     assert.throws(() => selectedProcedures(ids), AppError);
   assert.throws(
     () =>
-      selectedProcedures(["combined", "ultrasound", "hydration", "massage"]),
+      selectedProcedures(["nine-step-cleansing", "plasmolifting", "biorevitalization", "mesotherapy", "microneedling"]),
     /tooLong/,
   );
+});
+test("minimum and unquoted prices are formatted in both languages, preserving legacy fixed bookings", () => {
+  const known = selectedProcedures(["nine-step-cleansing", "yellow-peel"]);
+  const unquoted = selectedProcedures(["papilloma-removal"]);
+  const normalized = (text: string) => text.replaceAll("\u00a0", " ");
+  assert.equal(normalized(priceLabel(known[0], "ru")), "от 8 000 ₸");
+  assert.equal(priceLabel(unquoted[0], "ru"), "Цена уточняется");
+  assert.equal(normalized(totalLabel(known, "ru")), "от 18 000 ₸");
+  assert.equal(totalLabel(unquoted, "ru"), "Цена уточняется");
+  assert.equal(normalized(totalLabel([...known, ...unquoted], "ru")), "от 18 000 ₸ + цена уточняется");
+  assert.equal(normalized(totalLabel(known, "kk")), "18 000 ₸-ден бастап");
+  assert.equal(totalLabel(unquoted, "kk"), "Бағасы нақтыланады");
+  assert.equal(totalLabel([{ price: 12000 }], "ru", 12000), money(12000, "ru"));
+});
+test("server persists minimum and unknown price snapshots; Telegram receives the estimate, not a free service", async () => {
+  const env = environment();
+  env.NOTIFICATIONS_ENABLED = "true";
+  env.WHATSAPP_ENABLED = "false";
+  const b = await createBooking(env, request(), {
+    ...payload(futureSlot(180)), procedureIds: ["nine-step-cleansing", "chemical-peel", "papilloma-removal"], total: 1,
+  });
+  assert.equal(b.total, 13000);
+  assert.equal(b.duration, 180);
+  assert.equal(b.services[0].priceType, "from");
+  assert.equal(b.services[0].durationConfirmed, true);
+  assert.equal(b.services[2].price, null);
+  assert.equal(b.services[2].priceType, "on_request");
+  const stored = await findBooking(env, b.id);
+  assert.equal(JSON.parse(stored!.services)[2].price, null);
+  let sentText = "";
+  const mock = (async (_url: any, init: any) => {
+    sentText = JSON.parse(init.body).text;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 42 } }), { status: 200 });
+  }) as typeof fetch;
+  await processNotifications(env, "https://example.com", mock);
+  assert(sentText.includes(totalLabel(b.services, "ru", b.total)));
+  assert(sentText.includes("Удаление папиллом и бородавок"));
 });
 test("database collision rolls back the entire second booking; retry is idempotent", async () => {
   const env = environment(),
@@ -172,7 +211,7 @@ test("database collision rolls back the entire second booking; retry is idempote
         n: number;
       }>()
     )?.n,
-    2,
+    1,
   );
   const occupied = await env.DB.prepare("SELECT start_at FROM occupancy").all<{
     start_at: number;
@@ -204,7 +243,7 @@ test("cancellation frees all segments and is idempotent", async () => {
         "SELECT count(*) AS n FROM notifications WHERE kind='cancel'",
       ).first<{ n: number }>()
     )?.n,
-    1,
+    0,
   );
   await createBooking(env, request(), payload(start, "c".repeat(64)));
 });
@@ -225,68 +264,10 @@ test("simultaneous overlapping requests produce exactly one booking", async () =
     1,
   );
 });
-test("late booking queues reminder immediately and cron sends it once", async () => {
-  const env = environment();
-  env.NOTIFICATIONS_ENABLED = "true";
-  const b = await createBooking(env, request(), payload(futureSlot()));
-  await env.DB.prepare("UPDATE bookings SET start_at=? WHERE id=?")
-    .bind(Date.now() + 2 * 3600000, b.id)
-    .run();
-  await env.DB.prepare(
-    "UPDATE notifications SET due_at=? WHERE kind='reminder'",
-  )
-    .bind(Date.now() - 1)
-    .run();
-  let calls = 0;
-  const mock = (async (url: any) => {
-    if (String(url).includes("twilio.com")) calls++;
-    return new Response(
-      JSON.stringify(
-        String(url).includes("telegram.org")
-          ? { ok: true, result: { message_id: 1 } }
-          : { sid: "SMonce" },
-      ),
-      { status: 201 },
-    );
-  }) as typeof fetch;
-  await processNotifications(env, "https://example.com", mock);
-  await processNotifications(env, "https://example.com", mock);
-  assert.equal(calls, 1);
-  assert.equal(
-    (
-      await env.DB.prepare(
-        "SELECT status FROM notifications WHERE kind='reminder'",
-      ).first<{ status: string }>()
-    )?.status,
-    "sent",
-  );
-});
-test("cancelled booking has no reminder, but receives one cancellation message", async () => {
-  const env = environment();
-  env.NOTIFICATIONS_ENABLED = "true";
-  const b = await createBooking(env, request(), payload(futureSlot()));
-  await cancelBooking(env, b.id);
-  await env.DB.prepare("UPDATE notifications SET due_at=0").run();
-  const contents: string[] = [];
-  const mock = (async (_url: any, init: any) => {
-    contents.push(String(init.body));
-    return new Response(JSON.stringify({ sid: "SMcancel" }), { status: 201 });
-  }) as typeof fetch;
-  await processNotifications(env, "https://example.com", mock);
-  await processNotifications(env, "https://example.com", mock);
-  assert.equal(contents.length, 1);
-  assert(contents[0].includes("HXcancel"));
-});
 test("unknown provider response is quarantined, never retried", async () => {
   const env = environment();
   env.NOTIFICATIONS_ENABLED = "true";
   const b = await createBooking(env, request(), payload(futureSlot()));
-  await env.DB.prepare(
-    "UPDATE notifications SET status='sent' WHERE kind='telegram'",
-  ).run();
-  await env.DB.prepare(
-    "UPDATE notifications SET due_at=0 WHERE kind='reminder'",
-  ).run();
   let calls = 0;
   const mock = (async () => {
     calls++;
@@ -298,43 +279,10 @@ test("unknown provider response is quarantined, never retried", async () => {
   assert.equal(
     (
       await env.DB.prepare(
-        "SELECT status FROM notifications WHERE kind='reminder'",
+        "SELECT status FROM notifications WHERE kind='telegram'",
       ).first<{ status: string }>()
     )?.status,
     "uncertain",
-  );
-});
-test("cancellation during reminder request waits, then frees slot and queues cancellation", async () => {
-  const env = environment();
-  env.NOTIFICATIONS_ENABLED = "true";
-  const b = await createBooking(env, request(), payload(futureSlot()));
-  await env.DB.prepare(
-    "UPDATE notifications SET status='sent' WHERE kind='telegram'",
-  ).run();
-  await env.DB.prepare(
-    "UPDATE notifications SET due_at=0 WHERE kind='reminder'",
-  ).run();
-  const mock = (async () => {
-    assert.equal((await cancelBooking(env, b.id)).status, "cancel_pending");
-    return new Response(JSON.stringify({ sid: "SMrace" }), { status: 201 });
-  }) as typeof fetch;
-  await processNotifications(env, "https://example.com", mock);
-  assert.equal((await findBooking(env, b.id))?.status, "cancelled");
-  assert.equal(
-    (
-      await env.DB.prepare("SELECT count(*) AS n FROM occupancy").first<{
-        n: number;
-      }>()
-    )?.n,
-    0,
-  );
-  assert.equal(
-    (
-      await env.DB.prepare(
-        "SELECT status FROM notifications WHERE kind='cancel'",
-      ).first<{ status: string }>()
-    )?.status,
-    "pending",
   );
 });
 test("Telegram requires owner and an unexpired one-time confirmation", async () => {
@@ -377,13 +325,77 @@ test("Telegram requires owner and an unexpired one-time confirmation", async () 
           "SELECT count(*) AS n FROM notifications WHERE kind='cancel'",
         ).first<{ n: number }>()
       )?.n,
-      1,
+      0,
     );
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
-test("admin auth, CSRF, confirmation capability and Twilio signature", async () => {
+
+test("retired WhatsApp jobs never send, while Telegram sends once with old provider credentials present", async () => {
+  const env = environment(); env.NOTIFICATIONS_ENABLED = "true"; env.WHATSAPP_ENABLED = "true";
+  const b = await createBooking(env, request(), payload(futureSlot()));
+  assert.equal(b.whatsappConsent, false);
+  assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM notifications WHERE kind='reminder'").first<{n:number}>())?.n, 0);
+  await env.DB.prepare("INSERT INTO notifications (id,booking_id,kind,status,due_at) VALUES (?,?,?,'pending',0)").bind("old-reminder", b.id, "reminder").run();
+  let calls = 0;
+  const mock = (async (url: any) => { assert(String(url).startsWith("https://api.telegram.org/")); calls++;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 11 } }));
+  }) as typeof fetch;
+  await processNotifications(env, "https://example.com", mock);
+  await processNotifications(env, "https://example.com", mock);
+  assert.equal(calls, 1);
+  assert.equal((await env.DB.prepare("SELECT status FROM notifications WHERE id='old-reminder'").first<{status:string}>())?.status, "disabled");
+  await cancelBooking(env, b.id); await processNotifications(env, "https://example.com", mock);
+  assert.equal(calls, 1);
+  const ctx = { waitUntil() {} } as unknown as ExecutionContext;
+  const config = await worker.fetch(new Request("https://example.com/api/config"), env, ctx);
+  assert.equal((await config.json() as {whatsappEnabled:boolean}).whatsappEnabled, false);
+});
+
+test("public reviews require consent, stay unpublished until admin approval, and cannot bypass auth or CSRF", async () => {
+  const env = environment(), ctx = { waitUntil() {} } as unknown as ExecutionContext;
+  const run = (path: string, body?: object, cookie = "", origin = "https://example.com") => worker.fetch(new Request("https://example.com"+path, {
+    method: body ? "POST" : "GET", headers: { Origin: origin, Cookie: cookie, "Content-Type": "application/json" },
+    ...(body ? {body: JSON.stringify(body)} : {}),
+  }), env, ctx);
+  const data = { name:"Клиент", text:"Спасибо за внимательный приём!", lang:"ru", consent:true, website:"" };
+  assert.equal((await run("/api/reviews", {...data, consent:false})).status, 400);
+  const created = await run("/api/reviews", data); assert.equal(created.status, 201);
+  const {id} = await created.json() as {id:string};
+  assert.deepEqual((await (await run("/api/reviews")).json() as {rows:unknown[]}).rows, []);
+  assert.equal((await run("/api/admin/reviews")).status, 401);
+  assert.equal((await run(`/api/admin/reviews/${id}/status`, {status:"published"})).status, 401);
+  const login = await run("/api/admin/login", {password:env.ADMIN_PASSWORD});
+  const cookie = login.headers.get("set-cookie")!.split(";")[0];
+  assert.equal((await run(`/api/admin/reviews/${id}/status`, {status:"published"}, cookie, "https://evil.com")).status, 403);
+  assert.equal((await run(`/api/admin/reviews/${id}/status`, {status:"published"}, cookie)).status, 200);
+  assert.equal((await (await run("/api/reviews")).json() as {rows:{text:string}[]}).rows[0].text, data.text);
+  await run(`/api/admin/reviews/${id}/status`, {status:"hidden"}, cookie);
+  assert.deepEqual((await (await run("/api/reviews")).json() as {rows:unknown[]}).rows, []);
+});
+
+test("admin screenshot uploads validate image types and size; private and hidden images stay inaccessible", async () => {
+  const env = environment(), ctx = {waitUntil() {}} as unknown as ExecutionContext;
+  const run = (path:string, body?:object, cookie="") => worker.fetch(new Request("https://example.com"+path, {
+    method:body ? "POST":"GET", headers:{Origin:"https://example.com", Cookie:cookie, "Content-Type":"application/json"}, ...(body ? {body:JSON.stringify(body)}:{}),
+  }), env, ctx);
+  const login = await run("/api/admin/login", {password:env.ADMIN_PASSWORD}); const cookie = login.headers.get("set-cookie")!.split(";")[0];
+  const data = {name:"Клиент", text:"", lang:"kk", consent:true, image:{type:"image/png", data:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yj+0AAAAASUVORK5CYII="}};
+  assert.equal((await run("/api/reviews", data)).status, 403);
+  assert.equal((await run("/api/admin/reviews", {...data, image:{type:"image/svg+xml",data:btoa("<svg><script>alert(1)</script></svg>")}}, cookie)).status, 400);
+  assert.equal((await run("/api/admin/reviews", {...data, image:{type:"image/png",data:"A".repeat(1_100_000)}}, cookie)).status, 413);
+  const created = await run("/api/admin/reviews", data, cookie); assert.equal(created.status, 201);
+  const {id} = await created.json() as {id:string};
+  assert.equal((await run(`/api/reviews/${id}/image`)).status, 404);
+  const preview = await run(`/api/admin/reviews/${id}/image`, undefined, cookie); assert.equal(preview.headers.get("content-type"), "image/png");
+  assert.equal((await preview.arrayBuffer()).byteLength, atob(data.image.data).length);
+  await run(`/api/admin/reviews/${id}/status`, {status:"published"}, cookie);
+  assert.equal((await run(`/api/reviews/${id}/image`)).status, 200);
+  await run(`/api/admin/reviews/${id}/status`, {status:"hidden"}, cookie);
+  assert.equal((await run(`/api/reviews/${id}/image`)).status, 404);
+});
+test("admin auth, CSRF and confirmation capability", async () => {
   const env = environment();
   const ctx = { waitUntil() {} } as unknown as ExecutionContext;
   assert.equal(
@@ -447,91 +459,6 @@ test("admin auth, CSRF, confirmation capability and Twilio signature", async () 
     ).status,
     200,
   );
-  const url = "https://example.com/api/twilio/status?id=test";
-  const data = new URLSearchParams({
-    MessageSid: "SM1",
-    MessageStatus: "delivered",
-  });
-  const signature = await sign(
-    url + "MessageSidSM1MessageStatusdelivered",
-    env.TWILIO_AUTH_TOKEN!,
-    "SHA-1",
-  );
-  assert.equal(
-    (
-      await worker.fetch(
-        new Request(url, {
-          method: "POST",
-          body: data,
-          headers: { "x-twilio-signature": signature },
-        }),
-        env,
-        ctx,
-      )
-    ).status,
-    204,
-  );
-  assert.equal(
-    (
-      await worker.fetch(
-        new Request(url, { method: "POST", body: data }),
-        env,
-        ctx,
-      )
-    ).status,
-    403,
-  );
-});
-
-test("Telegram-only mode sends once and never calls Twilio, including cancellation", async () => {
-  const env = environment();
-  env.NOTIFICATIONS_ENABLED = "true";
-  env.WHATSAPP_ENABLED = "false";
-  const b = await createBooking(env, request(), payload(futureSlot()));
-  assert.equal(b.whatsappConsent, false);
-  const calls: string[] = [];
-  const mock = (async (url: any) => {
-    calls.push(String(url));
-    assert(String(url).includes("api.telegram.org"));
-    return new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }));
-  }) as typeof fetch;
-  await processNotifications(env, "https://example.com", mock);
-  await processNotifications(env, "https://example.com", mock);
-  await cancelBooking(env, b.id);
-  await processNotifications(env, "https://example.com", mock);
-  assert.equal(calls.length, 1);
-  const rows = await env.DB.prepare("SELECT kind,status FROM notifications").all<{ kind: string; status: string }>();
-  assert.equal(rows.results.find(n => n.kind === "reminder")?.status, "disabled");
-  assert.equal(rows.results.find(n => n.kind === "cancel")?.status, "disabled");
-});
-
-test("turning WhatsApp off also blocks previously queued jobs despite configured credentials", async () => {
-  const env = environment();
-  env.NOTIFICATIONS_ENABLED = "true";
-  const b = await createBooking(env, request(), payload(futureSlot()));
-  assert.equal(b.whatsappConsent, true);
-  env.WHATSAPP_ENABLED = "false";
-  await env.DB.prepare("UPDATE notifications SET due_at=0").run();
-  let calls = 0;
-  const mock = (async (url: any) => {
-    assert(String(url).includes("telegram.org"));
-    calls++;
-    return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }));
-  }) as typeof fetch;
-  await processNotifications(env, "https://example.com", mock);
-  assert.equal(calls, 1);
-  assert.equal((await env.DB.prepare("SELECT status FROM notifications WHERE kind='reminder'").first<{ status: string }>())?.status, "disabled");
-});
-
-test("enabling WhatsApp later does not message customers who did not opt in", async () => {
-  const env = environment();
-  env.NOTIFICATIONS_ENABLED = "true";
-  env.WHATSAPP_ENABLED = "false";
-  const b = await createBooking(env, request(), { ...payload(futureSlot()), whatsappConsent: false });
-  env.WHATSAPP_ENABLED = "true";
-  await cancelBooking(env, b.id);
-  assert.equal((await env.DB.prepare("SELECT status FROM notifications WHERE kind='cancel'").first<{ status: string }>())?.status, "disabled");
-  assert.equal((await findBooking(env, b.id))?.whatsapp_consent_at, null);
 });
 
 test("protected test form requires admin and CSRF, uses normal booking rules and disables WhatsApp", async () => {

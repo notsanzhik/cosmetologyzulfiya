@@ -1,18 +1,61 @@
-import catalog from "../data/procedures.json";
+import rawCatalog from "../data/procedures.json";
 import settings from "../data/config.json";
 import ru from "../locales/ru.json";
 import kk from "../locales/kk.json";
 
 export type Lang = "ru" | "kk";
-export type Procedure = (typeof catalog.procedures)[number];
+export type PriceType = "fixed" | "from" | "on_request";
+export type Procedure = {
+  id: string;
+  category: string;
+  name: Record<Lang, string>;
+  description: Record<Lang, string>;
+  duration: number;
+  durationConfirmed?: boolean;
+  price: number | null;
+  priceType?: PriceType;
+  placeholderPrice: boolean;
+  enabled: boolean;
+};
+export const catalog = rawCatalog as {
+  categories: { id: string; label: Record<Lang, string> }[];
+  procedures: Procedure[];
+};
 export type Snapshot = Pick<
   Procedure,
   "id" | "name" | "duration" | "price" | "placeholderPrice"
->;
+> & Partial<Pick<Procedure, "priceType" | "durationConfirmed">>;
 export const translations = { ru, kk };
-export { catalog, settings };
+export { settings };
 export const money = (n: number, lang: Lang) =>
   new Intl.NumberFormat("ru-RU").format(n) + " ₸";
+type PriceItem = Pick<Snapshot, "price" | "priceType">;
+export const totalAmount = (items: PriceItem[]) =>
+  items.reduce((sum, item) => sum + (item.price ?? 0), 0);
+export function priceLabel(item: PriceItem, lang: Lang) {
+  const t = translations[lang].pricing;
+  if (item.price === null || item.priceType === "on_request") return t.onRequest;
+  const amount = money(item.price, lang);
+  return item.priceType === "from" ? t.from.replace("{amount}", amount) : amount;
+}
+export function totalLabel(items: PriceItem[], lang: Lang, storedTotal?: number) {
+  const t = translations[lang].pricing;
+  const total = storedTotal ?? totalAmount(items);
+  const unknown = items.some(p => p.price === null || p.priceType === "on_request");
+  // null обозначает неизвестную цену. Ноль в сумме — только техническая сумма
+  // известных позиций; в интерфейсе неизвестная услуга никогда не выглядит бесплатной.
+  if (unknown) return total > 0
+    ? t.mixed.replace("{amount}", money(total, lang)) : t.onRequest;
+  if (items.some(p => p.priceType === "from"))
+    return t.from.replace("{amount}", money(total, lang));
+  // Старые записи без priceType сохраняют прежнюю фиксированную стоимость.
+  return money(total, lang);
+}
+export function durationLabel(item: Pick<Snapshot, "duration" | "durationConfirmed">, lang: Lang) {
+  const t = translations[lang].pricing;
+  return (item.durationConfirmed === false ? t.durationApproximate : t.durationExact)
+    .replace("{minutes}", String(item.duration));
+}
 export const dateLabel = (ms: number, lang: Lang) => {
   // Не во всех браузерах есть казахские названия месяцев в Intl.
   const parts = new Intl.DateTimeFormat("en-GB", {
