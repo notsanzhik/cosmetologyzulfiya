@@ -23,6 +23,8 @@ import {
   LoaderCircle,
   ArrowUpRight,
   ArrowUp,
+  Droplets,
+  Flower2,
 } from "lucide-react";
 import {
   catalog,
@@ -301,6 +303,13 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
     [captchaGeneration, setCaptchaGeneration] = useState(0);
   const attempt = useRef<{ key: string; token: string } | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const [catalogVisible, setCatalogVisible] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => setCatalogVisible(entry.isIntersecting));
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    return () => observer.disconnect();
+  }, []);
   const services = catalog.procedures.filter((p) => selected.includes(p.id));
   const total = totalAmount(services),
     duration = services.reduce((n, p) => n + p.duration, 0);
@@ -327,9 +336,13 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
     return () => controller.abort();
   }, [date, ids, stage, refresh, lang]);
   const toggle = (id: string) => {
-    setSelected((list) =>
-      list.includes(id) ? list.filter((x) => x !== id) : [...list, id],
-    );
+    setSelected(list => {
+      if (list.includes(id)) return list.filter(x => x !== id);
+      const next = [...list, id];
+      // Ограничение действует и при быстрых нажатиях до следующего рендера.
+      return catalog.procedures.filter(p => next.includes(p.id)).reduce((sum, p) => sum + p.duration, 0)
+        <= settings.maxDurationMinutes ? next : list;
+    });
     setStart(null);
   };
   const showForm = () => {
@@ -405,78 +418,79 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
     }
   };
   return (
-    <section id="services" className="section services-section">
+    <section id="services" ref={sectionRef} className="section services-section">
       <div className="container">
+        <div className="services-intro">
         <div className="section-heading">
           <p className="eyebrow">{t.services.eyebrow}</p>
           <h2>{t.services.title}</h2>
           <p>{t.services.text}</p>
         </div>
+          <ol className="booking-steps" aria-label={t.services.bookingSteps}>
+            {[t.services.step1, t.services.step2, t.services.step3].map((label, index) =>
+              <li key={label} className={index === (stage ? 1 : 0) ? "active" : ""}>
+                <span className="step-number">{index + 1}</span>{label}
+              </li>)}
+          </ol>
+        </div>
         <div className="booking-layout">
-          <div>
+          <div className="catalog-browser">
             <div className="category-tabs" aria-label={t.nav.services}>
               <button
                 className={category === "all" ? "active" : ""}
+                aria-pressed={category === "all"}
                 onClick={() => setCategory("all")}
               >
                 {t.services.all}
+                <small>{catalog.procedures.length}</small>
               </button>
               {catalog.categories.map((c) => (
                 <button
                   key={c.id}
                   className={category === c.id ? "active" : ""}
+                  aria-pressed={category === c.id}
                   onClick={() => setCategory(c.id)}
                 >
                   {c.label[lang]}
+                  <small>{catalog.procedures.filter(p => p.category === c.id).length}</small>
                 </button>
               ))}
             </div>
-            <div className="procedure-grid">
-              {catalog.procedures
-                .filter((p) => category === "all" || p.category === category)
-                .map((p) => (
-                  <label
-                    className={`procedure ${selected.includes(p.id) ? "selected" : ""} ${!p.enabled ? "disabled" : ""}`}
-                    key={p.id}
-                  >
-                    <div className="procedure-top">
-                      <span className="procedure-category">
-                        {
-                          catalog.categories.find((c) => c.id === p.category)
-                            ?.label[lang]
-                        }
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(p.id)}
-                        disabled={!p.enabled}
-                        onChange={() => toggle(p.id)}
-                      />
-                      <span className="check-box" aria-hidden="true">
-                        {selected.includes(p.id) ? (
-                          <Check size={15} />
-                        ) : (
-                          <Plus size={15} />
-                        )}
-                      </span>
-                    </div>
-                    <h3>{p.name[lang]}</h3>
-                    <p>{p.description[lang]}</p>
-                    <div className="procedure-bottom">
-                      <strong>{priceLabel(p, lang)}</strong>
-                    </div>
-                    <small>
-                      {p.enabled
-                        ? p.placeholderPrice
-                          ? t.services.example
-                          : ""
-                        : t.services.consult}
-                    </small>
-                  </label>
-                ))}
+            <p className="catalog-hint"><Sparkles size={16} aria-hidden="true" />{t.services.catalogHint}</p>
+            {duration >= settings.maxDurationMinutes && <p className="catalog-limit" role="status">{t.services.limitReached}</p>}
+            <div className="procedure-groups">
+              {catalog.categories.filter(c => category === "all" || c.id === category).map(c => {
+                const Icon = ({ cleansing: Droplets, injections: Sparkles, contouring: Heart, peeling: Leaf, additional: Flower2 })[c.id] || Sparkles;
+                const group = catalog.procedures.filter(p => p.category === c.id);
+                return <section className="procedure-group" key={c.id} aria-labelledby={`group-${c.id}`}>
+                  <header className="procedure-group-heading">
+                    <span className="category-emblem" aria-hidden="true"><Icon size={25} strokeWidth={1.25} /></span>
+                    <div><span className="group-number">0{catalog.categories.indexOf(c) + 1} /</span><h3 id={`group-${c.id}`}>{c.label[lang]}</h3></div>
+                    <span className="group-count" aria-hidden="true">{group.length.toString().padStart(2, "0")}</span>
+                  </header>
+                  <div className="treatment-list">{group.map(p => {
+                    const chosen = selected.includes(p.id);
+                    const blocked = !p.enabled || (!chosen && duration + p.duration > settings.maxDurationMinutes);
+                    return <label className={`procedure treatment-row ${chosen ? "selected" : ""} ${blocked ? "disabled" : ""}`} key={p.id}>
+                      <input type="checkbox" checked={chosen} disabled={blocked}
+                        aria-label={`${p.name[lang]} — ${priceLabel(p, lang)}`} onChange={() => toggle(p.id)} />
+                      <span className="treatment-icon" aria-hidden="true"><Icon size={19} strokeWidth={1.35} /></span>
+                      <div className="treatment-copy">
+                        <h4>{p.name[lang]}</h4><p>{p.description[lang]}</p>
+                        {(!p.enabled || p.placeholderPrice) && <small>{p.enabled ? t.services.example : t.services.consult}</small>}
+                      </div>
+                      <div className="treatment-choice">
+                        <strong className="treatment-price">{priceLabel(p, lang)}</strong>
+                        <span className="treatment-toggle" aria-hidden="true">{chosen ? <Check size={16} /> : <Plus size={16} />}<span>{chosen ? t.services.added : t.services.add}</span></span>
+                      </div>
+                    </label>;
+                  })}</div>
+                </section>;
+              })}
             </div>
           </div>
-          <aside className="summary">
+          <aside className="summary visit-summary">
+            <p className="summary-eyebrow">{t.services.visitLabel}</p>
             <div className="summary-heading">
               <span className="round-icon">
                 <Heart size={19} />
@@ -489,7 +503,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                 {services.map((p) => (
                   <li key={p.id}>
                     <span>
-                      {p.name[lang]}
+                      {p.name[lang]}<small>{priceLabel(p, lang)}</small>
                     </span>
                     <button
                       className="icon-button"
@@ -502,9 +516,9 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                 ))}
               </ul>
             ) : (
-              <p className="empty-selection">{t.services.empty}</p>
+              <div className="empty-selection"><span className="empty-selection-art" aria-hidden="true"><Flower2 size={42} strokeWidth={1} /></span><p>{t.services.empty}</p></div>
             )}
-            <div className="totals">
+            <div className="totals" aria-live="polite" aria-atomic="true">
               <div className="sum">
                 <span>{t.services.total}</span>
                 <strong>{totalLabel(services, lang, total)}</strong>
@@ -518,6 +532,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
               onClick={showForm}
             >
               {t.services.next}
+              <ArrowUpRight size={18} aria-hidden="true" />
             </button>
             {duration > settings.maxDurationMinutes && (
               <p className="error">{t.errors.tooLong}</p>
@@ -530,6 +545,10 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
             </p>
           </aside>
         </div>
+        {catalogVisible && services.length > 0 && !stage && <div className="mobile-selection">
+          <div><span>{t.services.count}: {services.length}</span><strong>{totalLabel(services, lang, total)}</strong></div>
+          <button className="button" onClick={showForm} disabled={duration > settings.maxDurationMinutes}>{t.services.next}<ArrowUpRight size={17} aria-hidden="true" /></button>
+        </div>}
         {stage && (
           <div className="booking-form" ref={formRef}>
             <div className="form-heading">
