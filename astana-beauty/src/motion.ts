@@ -7,7 +7,7 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>) {
     if (!page) return;
     const wordmark = page.querySelector<HTMLElement>(".footer-wordmark");
     const wordmarkStage = wordmark?.parentElement;
-    let measuredWidth = 0, sizingActive = true;
+    let measuredWidth = 0, sizingActive = true, sizingFrame = 0;
     const fitWordmark = () => {
       if (!sizingActive || !wordmark || !wordmarkStage) return;
       const width = wordmarkStage.clientWidth;
@@ -19,7 +19,9 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>) {
       measuredWidth = width;
     };
     const sizing = new ResizeObserver(() => {
-      if (wordmarkStage?.clientWidth !== measuredWidth) fitWordmark();
+      // Изменяем размер в следующем кадре, вне цикла уведомлений ResizeObserver.
+      if (wordmarkStage?.clientWidth !== measuredWidth && !sizingFrame)
+        sizingFrame = requestAnimationFrame(() => { sizingFrame = 0; fitWordmark(); });
     });
     if (wordmarkStage) sizing.observe(wordmarkStage);
     fitWordmark();
@@ -87,6 +89,7 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>) {
     preference.addEventListener("change", configure);
     return () => {
       sizingActive = false;
+      cancelAnimationFrame(sizingFrame);
       sizing.disconnect();
       wordmark?.style.removeProperty("--wordmark-size");
       dispose();
