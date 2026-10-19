@@ -1,23 +1,10 @@
-/* Знак и надпись разделены, чтобы сохранить читаемость в невысокой мобильной шапке. */
-.brand.brand-logo { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; }
-.brand-logo .brand-monogram { display: block; width: 52px; height: auto; flex: 0 0 auto; }
-.brand.brand-logo > .brand-identity { display: flex; flex-direction: column; gap: 5px; font: inherit; letter-spacing: normal; min-width: 0; }
-.brand-logo .brand-wordmark { display: block; width: 184px; height: auto; }
-.brand.brand-logo small, .landing-page .header .brand.brand-logo small { font-size: .62rem; letter-spacing: .015em; margin: 0; line-height: 1.3; }
+/* В шапке только монограмма. Название ссылки остаётся доступным для скринридеров. */
+.brand.brand-logo { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; max-width: 100%; }
+.brand-logo .brand-monogram { display: block; width: 68px; height: auto; flex: 0 0 auto; }
 .footer-wordmark-stage > img.footer-wordmark { width: 100%; height: auto; }
 .photo-placeholder > .master-monogram { width: 160px; height: auto; }
 
 @media (max-width: 600px) {
-  .brand.brand-logo { gap: 8px; }
-  .brand-logo .brand-monogram { width: 38px; }
-  .brand-logo .brand-wordmark { width: 158px; }
-  .brand.brand-logo > .brand-identity { gap: 4px; }
-  .brand.brand-logo small, .landing-page .header .brand.brand-logo small { font-size: .51rem; }
+  .brand-logo .brand-monogram { width: 48px; }
   .photo-placeholder > .master-monogram { width: 135px; }
-}
-@media (max-width: 360px) {
-  .brand.brand-logo { gap: 7px; }
-  .brand-logo .brand-monogram { width: 30px; }
-  .brand-logo .brand-wordmark { width: 136px; }
-  .brand.brand-logo small, .landing-page .header .brand.brand-logo small { font-size: .47rem; }
 }

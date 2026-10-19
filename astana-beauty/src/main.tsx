@@ -108,10 +108,6 @@ function Brand() {
   return (
     <a className="brand brand-logo" href="/" aria-label={t.brand}>
       <img className="brand-monogram" src="/brand/monogram-v1.webp" width="320" height="293" alt="" decoding="async" />
-      <span className="brand-identity">
-        <img className="brand-wordmark" src="/brand/wordmark-v1.webp" width="960" height="243" alt="" decoding="async" />
-        <small>{t.studio}</small>
-      </span>
     </a>
   );
 }
