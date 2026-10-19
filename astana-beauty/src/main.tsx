@@ -46,6 +46,7 @@ import { normalizePath, publicPage, publicPages, type PublicPage } from "./route
 import "./styles.css";
 import "./motion.css";
 import "./pages.css";
+import "./brand.css";
 
 type Runtime = {
   bookingEnabled: boolean;
@@ -105,11 +106,12 @@ function LangSwitch() {
 function Brand() {
   const { t } = useText();
   return (
-    <a className="brand" href="/">
-      <span>
-        {t.brand}
+    <a className="brand brand-logo" href="/" aria-label={t.brand}>
+      <img className="brand-monogram" src="/brand/monogram-v1.webp" width="320" height="293" alt="" decoding="async" />
+      <span className="brand-identity">
+        <img className="brand-wordmark" src="/brand/wordmark-v1.webp" width="960" height="243" alt="" decoding="async" />
+        <small>{t.studio}</small>
       </span>
-      <small>{t.studio}</small>
     </a>
   );
 }
@@ -753,9 +755,7 @@ function About() {
             />
           ) : (
             <div className="photo-placeholder">
-              <span>
-                {t.brandMark}
-              </span>
+              <img className="master-monogram" src="/brand/monogram-v1.webp" width="320" height="293" alt={t.brand} loading="lazy" decoding="async" />
               <p>{t.about.photo}</p>
             </div>
           )}
@@ -960,7 +960,7 @@ function Footer() {
           </div>
         </div>
         <div className="footer-wordmark-stage">
-          <span className="footer-wordmark">{t.brand}</span>
+          <img className="footer-wordmark" src="/brand/wordmark-v1.webp" width="960" height="243" alt={t.brand} loading="lazy" decoding="async" />
         </div>
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} {t.brand} · {t.city}</span>

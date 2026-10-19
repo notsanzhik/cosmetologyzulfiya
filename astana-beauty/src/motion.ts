@@ -5,27 +5,7 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const page = root.current;
     if (!page) return;
-    const wordmark = page.querySelector<HTMLElement>(".footer-wordmark");
-    const wordmarkStage = wordmark?.parentElement;
-    let measuredWidth = 0, sizingActive = true, sizingFrame = 0;
-    const fitWordmark = () => {
-      if (!sizingActive || !wordmark || !wordmarkStage) return;
-      const width = wordmarkStage.clientWidth;
-      const textWidth = wordmark.offsetWidth;
-      if (!width || !textWidth) return;
-      // Подгоняем сам шрифт после загрузки: даже запасной шрифт не обрежется по краям.
-      const size = parseFloat(getComputedStyle(wordmark).fontSize) * width * 0.965 / textWidth;
-      wordmark.style.setProperty("--wordmark-size", `${Math.floor(size * 10) / 10}px`);
-      measuredWidth = width;
-    };
-    const sizing = new ResizeObserver(() => {
-      // Изменяем размер в следующем кадре, вне цикла уведомлений ResizeObserver.
-      if (wordmarkStage?.clientWidth !== measuredWidth && !sizingFrame)
-        sizingFrame = requestAnimationFrame(() => { sizingFrame = 0; fitWordmark(); });
-    });
-    if (wordmarkStage) sizing.observe(wordmarkStage);
-    fitWordmark();
-    void document.fonts.ready.then(fitWordmark);
+    // Логотип теперь изображение: ширину задаёт CSS, подгонка шрифта больше не нужна.
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let dispose = () => {};
     const configure = () => {
@@ -88,10 +68,6 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>) {
     configure();
     preference.addEventListener("change", configure);
     return () => {
-      sizingActive = false;
-      cancelAnimationFrame(sizingFrame);
-      sizing.disconnect();
-      wordmark?.style.removeProperty("--wordmark-size");
       dispose();
       preference.removeEventListener("change", configure);
     };
