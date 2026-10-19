@@ -939,14 +939,10 @@ function Footer() {
       <span className="footer-orb footer-orb-two" aria-hidden="true" />
       <div className="container footer-content">
         <div className="footer-invitation">
-          <div>
-            <p className="eyebrow"><Sparkles size={15} aria-hidden="true" />{t.footer.eyebrow}</p>
-            <h2>{t.footer.title}<br /><em>{t.footer.accent}</em></h2>
-            <p className="footer-description">{t.footer.text}</p>
-          </div>
+          <h2>{t.footer.title} <em>{t.footer.accent}</em></h2>
           <a className="footer-book bubble-link" href="/procedures">
-            <ArrowUpRight size={32} strokeWidth={1.2} aria-hidden="true" />
             <span>{t.services.submit}</span>
+            <ArrowUpRight size={21} strokeWidth={1.5} aria-hidden="true" />
           </a>
         </div>
         <div className="footer-links">
