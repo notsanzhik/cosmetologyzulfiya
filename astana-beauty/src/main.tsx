@@ -955,7 +955,7 @@ function Footer() {
             <a href="/#contacts">{t.nav.contacts}</a>
           </nav>
           <div className="footer-social">
-            {settings.contact.whatsapp && <a className="footer-pill bubble-link" href={`https://wa.me/${settings.contact.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{t.contacts.whatsapp}<ArrowUpRight size={18} aria-hidden="true" /></a>}
+            {settings.contact.whatsapp && <a className="footer-pill bubble-link" aria-label={t.contacts.whatsapp} href={`https://wa.me/${settings.contact.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><span className="footer-contact-long">{t.contacts.whatsapp}</span><span className="footer-contact-short" aria-hidden="true">{t.footer.whatsappShort}</span><ArrowUpRight size={18} aria-hidden="true" /></a>}
             {settings.contact.phone && <a className="footer-phone" href={`tel:${settings.contact.phone}`}>{maskPhone(settings.contact.phone)}</a>}
           </div>
         </div>
