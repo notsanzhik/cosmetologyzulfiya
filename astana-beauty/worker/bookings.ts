@@ -51,7 +51,11 @@ export async function createBooking(
   if (body.website) throw new AppError("invalid");
   if (typeof body.token !== "string" || !/^[a-f0-9]{64}$/.test(body.token))
     throw new AppError("invalid");
-  if (typeof body.start !== "number" || !Number.isSafeInteger(body.start))
+  if (
+    typeof body.start !== "number" ||
+    !Number.isSafeInteger(body.start) ||
+    !Number.isFinite(new Date(body.start).getTime())
+  )
     throw new AppError("invalid");
   const procedures = selectedProcedures(body.procedureIds);
   const snapshot = procedures.map(

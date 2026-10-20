@@ -3,7 +3,7 @@ import type { Env } from "./types";
 import { AppError } from "./schedule";
 import { cancelBooking, findBooking } from "./bookings";
 import { telegram } from "./notifications";
-import { equalSecret } from "./security";
+import { equalSecret, jsonBody } from "./security";
 
 export async function handleTelegram(env: Env, request: Request) {
   if (
@@ -15,9 +15,10 @@ export async function handleTelegram(env: Env, request: Request) {
     ))
   )
     throw new AppError("forbidden", 403);
-  const raw = await request.text();
-  if (raw.length > 12000) throw new AppError("invalid");
-  const body = JSON.parse(raw) as {
+  // Ограничение применяется во время чтения потока, включая запросы без длины.
+  const headers = new Headers(request.headers);
+  headers.set("Content-Type", "application/json");
+  const body = await jsonBody(new Request(request, { headers })) as {
     callback_query?: {
       id: string;
       from: { id: number };
@@ -27,6 +28,11 @@ export async function handleTelegram(env: Env, request: Request) {
   };
   const q = body.callback_query;
   if (!q) return;
+  if (
+    typeof q.id !== "string" || !q.id || q.id.length > 256 ||
+    !q.from || !Number.isSafeInteger(q.from.id) ||
+    (q.data != null && (typeof q.data !== "string" || q.data.length > 64))
+  ) throw new AppError("invalid");
   const t = translations.ru.telegram;
   if (
     !q.message ||
@@ -40,7 +46,7 @@ export async function handleTelegram(env: Env, request: Request) {
     });
     return;
   }
-  const [action, value] = (q.data || "").split(":");
+  const [action, value, bookingId] = (q.data || "").split(":");
   let answer = t.kept;
   const edit = (text: string, buttons: object[][]) =>
     telegram(env, "editMessageReplyMarkup", {
@@ -52,7 +58,9 @@ export async function handleTelegram(env: Env, request: Request) {
     const b = await findBooking(env, value);
     if (!b || b.status !== "confirmed") answer = t.cancelled;
     else {
-      const nonce = crypto.randomUUID().replace(/-/g, "");
+      // 128 бит помещаются в 22 символа: вместе с id записи callback ≤ 64 байт.
+      const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
+        .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
       await env.DB.prepare(
         "INSERT INTO cancel_confirmations (nonce,booking_id,expires_at) VALUES (?,?,?)",
       )
@@ -60,19 +68,29 @@ export async function handleTelegram(env: Env, request: Request) {
         .run();
       await edit(t.ask, [
         [
-          { text: t.yes, callback_data: `yes:${nonce}` },
+          { text: t.yes, callback_data: `yes:${nonce}:${b.id}` },
           { text: t.no, callback_data: `no:${b.id}` },
         ],
       ]);
       answer = t.ask;
     }
-  } else if (action === "yes" && /^[a-f0-9]{32}$/.test(value || "")) {
+  } else if (action === "yes" && (/^[A-Za-z0-9_-]{22}$/.test(value || "") || /^[a-f0-9]{32}$/.test(value || ""))) {
     const confirmation = await env.DB.prepare(
-      "DELETE FROM cancel_confirmations WHERE nonce=? AND expires_at>? RETURNING booking_id",
+      "DELETE FROM cancel_confirmations WHERE nonce=? AND expires_at>? AND (? IS NULL OR booking_id=?) RETURNING booking_id",
     )
-      .bind(value, Date.now())
+      .bind(value, Date.now(), bookingId || null, bookingId || null)
       .first<{ booking_id: string }>();
-    if (!confirmation) answer = t.expired;
+    if (!confirmation) {
+      answer = t.expired;
+      // Даже после уборки старого nonce возвращаем исходную кнопку, чтобы
+      // владелец мог заново подтвердить отмену, а не застревал на «Да / Нет».
+      if (/^[a-f0-9-]{36}$/.test(bookingId || "")) {
+        const b = await findBooking(env, bookingId);
+        if (b && b.status !== "confirmed") answer = t.cancelled;
+        await edit(answer, b?.status === "confirmed"
+          ? [[{ text: t.cancel, callback_data: `ask:${b.id}` }]] : []);
+      }
+    }
     else {
       const b = await cancelBooking(env, confirmation.booking_id);
       answer = b.status === "cancelled" ? t.cancelled : t.pending;

@@ -2,7 +2,7 @@
 
 Сайт: https://dr-zulfiya-shym.pages.dev  
 Админка: https://dr-zulfiya-shym.pages.dev/admin  
-Приватный код: https://github.com/notsanzhik/cosmetologyzulfiya
+Исходный код (публичный репозиторий): https://github.com/notsanzhik/cosmetologyzulfiya
 
 Сайт опубликован в проекте Cloudflare Pages `dr-zulfiya-shym`. Техническое имя `astana-beauty` сохранено у фонового Worker и базы. На сайте указаны Шымкент и dr.zulfiya.
 

@@ -222,24 +222,53 @@ function Captcha({
   onToken: (t: string) => void;
   generation: number;
 }) {
+  const { t } = useText();
   const holder = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!siteKey) return;
     let disposed = false,
-      widget: string | undefined;
+      widget: string | undefined,
+      widgetSize: "normal" | "compact" | undefined;
+    const fail = () => {
+      if (!disposed) {
+        onToken("");
+        setFailed(true);
+      }
+    };
     const render = () => {
-      if (!disposed && holder.current && window.turnstile)
+      if (disposed || !holder.current || !window.turnstile) return;
+      // Обычный виджет имеет ширину 300px; compact помещается и в узкой форме.
+      const size = holder.current.clientWidth < 300 ? "compact" : "normal";
+      if (widget && widgetSize === size) return;
+      if (widget) window.turnstile.remove(widget);
+      onToken("");
+      setFailed(false);
+      widgetSize = size;
+      try {
         widget = window.turnstile.render(holder.current, {
           sitekey: siteKey,
           action: "booking",
-          callback: onToken,
+          size,
+          callback: (token: string) => {
+            if (!disposed) { onToken(token); setFailed(false); }
+          },
           "expired-callback": () => onToken(""),
-          "error-callback": () => onToken(""),
+          "error-callback": fail,
         });
+      } catch { fail(); }
     };
     let script = document.getElementById(
       "turnstile-script",
     ) as HTMLScriptElement | null;
+    if (script?.dataset.failed === "true") {
+      script.remove();
+      script = null;
+    }
+    const scriptError = () => {
+      if (script) script.dataset.failed = "true";
+      fail();
+    };
     if (window.turnstile) render();
     else {
       if (!script) {
@@ -251,14 +280,19 @@ function Captcha({
         document.head.appendChild(script);
       }
       script.addEventListener("load", render);
+      script.addEventListener("error", scriptError);
     }
+    const resize = new ResizeObserver(render);
+    if (holder.current) resize.observe(holder.current);
     return () => {
       disposed = true;
+      resize.disconnect();
       script?.removeEventListener("load", render);
+      script?.removeEventListener("error", scriptError);
       if (widget && window.turnstile) window.turnstile.remove(widget);
     };
   }, [siteKey, onToken, generation]);
-  return <div ref={holder} className="captcha" />;
+  return <><div ref={holder} className="captcha" />{failed && <p className="error" role="alert">{t.services.captchaError}</p>}</>;
 }
 function PricingNotes({ services }: { services: Snapshot[] }) {
   const { t } = useText();
@@ -300,11 +334,15 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
     [whatsappConsent, setWhatsappConsent] = useState(false),
     [website, setWebsite] = useState("");
   const [error, setError] = useState(""),
+    [slotsError, setSlotsError] = useState(""),
+    [slotsLoaded, setSlotsLoaded] = useState(false),
     [sending, setSending] = useState(false),
     [captchaToken, setCaptchaToken] = useState(""),
     [captchaGeneration, setCaptchaGeneration] = useState(0);
   const attempt = useRef<{ key: string; token: string } | null>(null);
+  const submitting = useRef(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const dateInput = useRef<HTMLInputElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [catalogVisible, setCatalogVisible] = useState(false);
   useEffect(() => {
@@ -320,10 +358,16 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
   const total = totalAmount(services),
     duration = services.reduce((n, p) => n + p.duration, 0);
   const ids = selected.join(",");
+  const earliestDate = localDate();
+  const latestDate = localDate(Date.now() + settings.maxAdvanceDays * 86400000);
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= earliestDate && date <= latestDate;
   useEffect(() => {
     setStart(null);
     setSlots([]);
-    if (!stage || !ids) return;
+    setSlotsError("");
+    setSlotsLoaded(false);
+    setLoading(false);
+    if (!stage || !ids || !validDate) return;
     const controller = new AbortController();
     setLoading(true);
     api<{ slots: typeof slots }>(
@@ -331,17 +375,21 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
       { signal: controller.signal },
     )
       .then((result) => {
-        if (!controller.signal.aborted) setSlots(result.slots);
+        if (!controller.signal.aborted) {
+          setSlots(result.slots);
+          setSlotsLoaded(true);
+        }
       })
       .catch((err) => {
-        if (!controller.signal.aborted) setError(message(err, lang));
+        if (!controller.signal.aborted) setSlotsError(err instanceof ApiError ? message(err, lang) : t.services.slotsError);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [date, ids, stage, refresh, lang]);
+  }, [date, ids, stage, refresh, lang, validDate, t]);
   const toggle = (id: string) => {
+    if (submitting.current) return;
     setSelected(list => {
       if (list.includes(id)) return list.filter(x => x !== id);
       const next = [...list, id];
@@ -350,24 +398,32 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
         <= settings.maxDurationMinutes ? next : list;
     });
     setStart(null);
+    setError("");
   };
   const showForm = () => {
     setStage(true);
-    setTimeout(
-      () =>
-        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      40,
-    );
+    setTimeout(() => {
+      dateInput.current?.focus({ preventScroll: true });
+      formRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      });
+    }, 40);
   };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting.current) return;
     setError("");
     if (!start) {
       setError(t.services.chooseTime);
       return;
     }
-    if (duration > settings.maxDurationMinutes) {
+    if (!services.length || duration > settings.maxDurationMinutes) {
       setError(t.errors.tooLong);
+      return;
+    }
+    if (name.trim().length < 2) {
+      setError(t.errors.invalid);
       return;
     }
     if (!consent) {
@@ -380,7 +436,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
       return;
     }
     const payload = {
-      name,
+      name: name.trim(),
       phone: normalized,
       lang,
       start,
@@ -397,6 +453,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
           .map((n) => n.toString(16).padStart(2, "0"))
           .join(""),
       };
+    submitting.current = true;
     setSending(true);
     try {
       const result = await api<PublicBooking>(
@@ -421,6 +478,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
         attempt.current = null;
       }
     } finally {
+      submitting.current = false;
       setSending(false);
     }
   };
@@ -477,7 +535,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                   </header>
                   <div className="treatment-list">{group.map(p => {
                     const chosen = selected.includes(p.id);
-                    const blocked = !p.enabled || (!chosen && duration + p.duration > settings.maxDurationMinutes);
+                    const blocked = sending || !p.enabled || (!chosen && duration + p.duration > settings.maxDurationMinutes);
                     return <label className={`procedure treatment-row ${chosen ? "selected" : ""} ${blocked ? "disabled" : ""}`} key={p.id}>
                       <input type="checkbox" checked={chosen} disabled={blocked}
                         aria-label={`${p.name[lang]} — ${priceLabel(p, lang)}`} onChange={() => toggle(p.id)} />
@@ -514,6 +572,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                     </span>
                     <button
                       className="icon-button"
+                      disabled={sending}
                       onClick={() => toggle(p.id)}
                       aria-label={`${t.services.remove}: ${p.name[lang]}`}
                     >
@@ -534,7 +593,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
             <button
               className="button full"
               disabled={
-                !services.length || duration > settings.maxDurationMinutes
+                sending || !services.length || duration > settings.maxDurationMinutes
               }
               onClick={showForm}
             >
@@ -544,7 +603,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
             {duration > settings.maxDurationMinutes && (
               <p className="error">{t.errors.tooLong}</p>
             )}
-            <a className="button secondary full question-button" href={`https://wa.me/${settings.contact.whatsapp}`} target="_blank" rel="noreferrer"><Phone size={16} />{t.services.question}</a>
+            <a className="button secondary full question-button" href={`https://wa.me/${settings.contact.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><Phone size={16} />{t.services.question}</a>
             <PricingNotes services={services} />
             <p className="summary-security">
               <ShieldCheck size={15} />
@@ -566,24 +625,23 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                 <h3>{t.services.step2}</h3>
                 <p>{t.services.timezone}</p>
               </div>
-              <button className="text-link" onClick={() => setStage(false)}>
+              <button className="text-link" disabled={sending} onClick={() => setStage(false)}>
                 {t.services.back}
               </button>
             </div>
             <form onSubmit={submit}>
-              <div className="form-columns">
+              <fieldset className="booking-fields form-columns" disabled={sending} aria-busy={sending}>
                 <div>
                   <label className="field">
                     <span>{t.services.date}</span>
                     <input
                       type="date"
+                      ref={dateInput}
                       value={date}
-                      min={localDate()}
-                      max={localDate(
-                        Date.now() + settings.maxAdvanceDays * 86400000,
-                      )}
+                      min={earliestDate}
+                      max={latestDate}
                       required
-                      onChange={(e) => setDate(e.target.value)}
+                      onChange={(e) => { setDate(e.target.value); setError(""); }}
                     />
                   </label>
                   <div className="slots-heading">
@@ -591,21 +649,26 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                     <button
                       type="button"
                       className="text-link"
+                      disabled={loading || !services.length || !validDate}
                       onClick={() => setRefresh((n) => n + 1)}
                     >
                       {t.services.refresh}
                     </button>
                   </div>
                   {loading ? (
-                    <p className="loading">
+                    <p className="loading" role="status">
                       <LoaderCircle className="spinner" size={18} />
                       {t.services.loading}
                     </p>
                   ) : !services.length ? (
                     <p>{t.services.chooseFirst}</p>
+                  ) : !validDate ? (
+                    <p className="muted">{t.services.selectDate}</p>
+                  ) : slotsError ? (
+                    <p className="error" role="alert">{slotsError}</p>
                   ) : (
                     <>
-                      <div className="slots">
+                      <div className="slots" role="group" aria-label={t.services.time}>
                         {slots.map((s) => (
                           <button
                             key={s.start}
@@ -613,7 +676,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                             disabled={!s.available}
                             className={start === s.start ? "chosen" : ""}
                             aria-pressed={start === s.start}
-                            onClick={() => setStart(s.start)}
+                            onClick={() => { setStart(s.start); setError(""); }}
                           >
                             {new Intl.DateTimeFormat(lang, {
                               timeZone: settings.timezone,
@@ -624,7 +687,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                           </button>
                         ))}
                       </div>
-                      {!slots.some((s) => s.available) && (
+                      {slotsLoaded && !slots.some((s) => s.available) && (
                         <p className="muted">{t.services.noSlots}</p>
                       )}
                     </>
@@ -717,7 +780,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                     {error && <p className="error">{error}</p>}
                   </div>
                 </div>
-              </div>
+              </fieldset>
             </form>
           </div>
         )}
@@ -800,7 +863,9 @@ function About() {
       </div>
       <dialog
         ref={dialog}
+        aria-label={image?.title || t.about.certificates}
         onCancel={() => setImage(null)}
+        onClose={() => setImage(null)}
         onClick={(e) => {
           if (e.target === e.currentTarget) setImage(null);
         }}
@@ -889,7 +954,7 @@ function Contacts() {
                 {t.contacts.whatsapp}
               </button>
             )}
-            {settings.contact.instagram ? (
+            {settings.contact.instagram && (
               <a
                 className="text-link"
                 href={settings.contact.instagram}
@@ -898,8 +963,6 @@ function Contacts() {
               >
                 {t.contacts.instagram}
               </a>
-            ) : (
-              <span className="muted">{t.contacts.instagram}</span>
             )}
           </div>
         </div>
@@ -1009,16 +1072,31 @@ function PublicSite({ runtime, page }: { runtime: Runtime | null; page: PublicPa
 function Confirmation({ runtime }: { runtime: Runtime | null }) {
   const { t, lang } = useText();
   const [booking, setBooking] = useState<PublicBooking | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [retry, setRetry] = useState(0);
+  const title = error ? t.confirmation.unavailableTitle : !booking ? t.confirmation.loading
+    : booking.status === "cancelled" ? t.confirmation.cancelled : t.confirmation.title;
   useEffect(() => {
+    document.title = `${title} · ${t.brand} · ${t.city}`;
+  }, [title, t]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setError("");
     const token =
       new URLSearchParams(location.hash.slice(1)).get("token") || "";
     api<PublicBooking>(`/api/bookings/${location.pathname.split("/").pop()}`, {
+      signal: controller.signal,
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(setBooking)
-      .catch(() => setError(t.confirmation.missing));
-  }, [t]);
+      .then(result => { if (!controller.signal.aborted) setBooking(result); })
+      .catch(err => {
+        if (!controller.signal.aborted) setError(
+          err instanceof ApiError && err.code === "notFound"
+            ? t.confirmation.missing : t.confirmation.loadError,
+        );
+      });
+    return () => controller.abort();
+  }, [t, retry]);
   return (
     <>
       <div className="simple-header container">
@@ -1026,21 +1104,22 @@ function Confirmation({ runtime }: { runtime: Runtime | null }) {
         <LangSwitch />
       </div>
       <main className="receipt">
-        <span className="receipt-icon">
-          {booking?.status === "cancelled" ? <X /> : <Check />}
+        <span className="receipt-icon" aria-hidden="true">
+          {error || booking?.status === "cancelled" ? <X /> : !booking ? <LoaderCircle className="spinner" /> : <Check />}
         </span>
         <h1>
-          {booking?.status === "cancelled"
-            ? t.confirmation.cancelled
-            : t.confirmation.title}
+          {title}
         </h1>
         {error ? (
-          <p className="error">{error}</p>
+          <div role="alert">
+            <p className="error">{error}</p>
+            <button className="button secondary" onClick={() => setRetry(n => n + 1)}>{t.confirmation.retry}</button>
+          </div>
         ) : !booking ? (
           <p>{t.confirmation.loading}</p>
         ) : (
           <>
-            <p>{t.confirmation.text}</p>
+            {booking.status === "confirmed" && <p>{t.confirmation.text}</p>}
             <dl>
               <div>
                 <dt>{t.confirmation.number}</dt>
@@ -1104,7 +1183,9 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
     [busy, setBusy] = useState(false);
   const [page, setPage] = useState(0),
     [hasMore, setHasMore] = useState(false);
+  const loadVersion = useRef(0);
   const load = async () => {
+    const version = ++loadVersion.current;
     setBusy(true);
     setError("");
     try {
@@ -1115,10 +1196,13 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
       const result = await api<{ rows: AdminBooking[]; hasMore: boolean }>(
         `/api/admin/bookings?${query}`,
       );
+      // Быстрое переключение фильтра не должно показывать ответ от прошлой даты.
+      if (version !== loadVersion.current) return;
       setRows(result.rows);
       setHasMore(result.hasMore);
       setLoggedIn(true);
     } catch (err) {
+      if (version !== loadVersion.current) return;
       if (
         err instanceof ApiError &&
         ["unauthorized", "setup"].includes(err.code)
@@ -1126,12 +1210,15 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
         setLoggedIn(false);
       else setError(message(err, lang));
     } finally {
-      setBusy(false);
-      setChecked(true);
+      if (version === loadVersion.current) {
+        setBusy(false);
+        setChecked(true);
+      }
     }
   };
   useEffect(() => {
     void load();
+    return () => { loadVersion.current += 1; };
   }, [date, status, lang, page]);
   const login = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1236,9 +1323,20 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
               </button>
               <button
                 className="text-link"
+                disabled={busy}
                 onClick={async () => {
-                  await api("/api/admin/logout", post({}));
-                  setLoggedIn(false);
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await api("/api/admin/logout", post({}));
+                    loadVersion.current += 1;
+                    setRows([]);
+                    setLoggedIn(false);
+                  } catch (err) {
+                    setError(message(err, lang));
+                  } finally {
+                    setBusy(false);
+                  }
                 }}
               >
                 {t.admin.logout}
@@ -1358,10 +1456,12 @@ function Privacy({ runtime }: { runtime: Runtime | null }) {
 function App() {
   const path = normalizePath(location.pathname);
   const page = publicPage(path);
-  const initialLang =
-    new URLSearchParams(location.hash.slice(1)).get("lang") ||
-    localStorage.getItem("aru-language");
-  const [lang, setLang] = useState<Lang>(initialLang === "kk" ? "kk" : "ru"),
+  const [lang, setLang] = useState<Lang>(() => {
+    let saved = new URLSearchParams(location.hash.slice(1)).get("lang");
+    // Сайт работает и в браузере, запрещающем localStorage.
+    if (!saved) try { saved = localStorage.getItem("aru-language"); } catch { /* Оставляем русский по умолчанию. */ }
+    return saved === "kk" ? "kk" : "ru";
+  }),
     [runtime, setRuntime] = useState<Runtime | null>(null);
   useEffect(() => {
     const followLegacyLink = () => {
@@ -1378,10 +1478,10 @@ function App() {
       ?.setAttribute("content", page ? translations[lang].pages.descriptions[page] : translations[lang].hero.text);
     const title = page ? translations[lang].nav[page] : path === "/privacy" ? translations[lang].privacy.title : path.startsWith("/admin") ? translations[lang].admin.title : path.startsWith("/confirmation/") ? translations[lang].confirmation.title : translations[lang].pages.missing.title;
     document.title = `${title} · ${translations[lang].brand} · ${translations[lang].city}`;
-    localStorage.setItem("aru-language", lang);
+    try { localStorage.setItem("aru-language", lang); } catch { /* Выбранный язык сохраняется в состоянии текущей страницы. */ }
   }, [lang, page, path]);
   useEffect(() => {
-    api<Runtime>(location.pathname === "/admin/test-booking" ? "/api/admin/test-config" : "/api/config")
+    api<Runtime>(path === "/admin/test-booking" ? "/api/admin/test-config" : "/api/config")
       .then(setRuntime)
       .catch(() =>
         setRuntime({

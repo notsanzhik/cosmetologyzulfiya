@@ -117,14 +117,27 @@ export async function requireAdmin(env: Env, request: Request) {
     .find((x) => x.startsWith("aru_admin="))
     ?.slice(10);
   if (!value) throw new AppError("unauthorized", 401);
-  const [expiry, nonce, signature] = value.split(".");
+  const parts = value.split(".");
+  const [expiry, nonce, signature] = parts;
   if (
+    parts.length !== 3 ||
     !expiry ||
     !nonce ||
     !signature ||
-    Number(expiry) < Date.now() / 1000 ||
+    !Number.isSafeInteger(Number(expiry)) ||
+    Number(expiry) <= Date.now() / 1000
+  )
+    throw new AppError("unauthorized", 401);
+  let decodedSignature: string;
+  try {
+    decodedSignature = decodeURIComponent(signature);
+  } catch {
+    // Повреждённая cookie означает завершённый вход, а не сбой сервера.
+    throw new AppError("unauthorized", 401);
+  }
+  if (
     !(await equalSecret(
-      decodeURIComponent(signature),
+      decodedSignature,
       await sign(`${expiry}.${nonce}`, env.SESSION_SECRET!),
     ))
   )

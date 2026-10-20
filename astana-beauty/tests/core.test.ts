@@ -13,6 +13,7 @@ import {
   AppError,
 } from "../worker/schedule";
 import { createBooking, cancelBooking, findBooking } from "../worker/bookings";
+import { rateLimit } from "../worker/security";
 import { processNotifications } from "../worker/notifications";
 import { handleTelegram } from "../worker/telegram";
 import worker from "../worker/index";
@@ -290,6 +291,84 @@ test("simultaneous overlapping requests produce exactly one booking", async () =
     )?.n,
     1,
   );
+});
+test("malformed booking timestamps are client errors and never reach storage", async () => {
+  const env = environment(), ctx = { waitUntil() {} } as unknown as ExecutionContext;
+  for (const start of [Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER, "tomorrow", null, 1.5]) {
+    const response = await worker.fetch(new Request("https://example.com/api/bookings", {
+      method: "POST",
+      headers: { Origin: "https://example.com", "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload(futureSlot()), start }),
+    }), env, ctx);
+    assert.equal(response.status, 400, String(start));
+    assert.deepEqual(await response.json(), { code: "invalid" });
+  }
+  assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM bookings").first<{n:number}>())?.n, 0);
+  assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM rate_limits").first<{n:number}>())?.n, 0);
+});
+test("server rejects slots across lunch, outside working hours and off the slot grid", async () => {
+  // Ищем ближайший будний день, чтобы тест не зависел от дня запуска.
+  let date = "";
+  for (let days = 1; days <= 7; days++) {
+    const candidate = localDate(Date.now() + days * 86400000);
+    const weekday = new Date(`${candidate}T12:00:00Z`).getUTCDay();
+    if (weekday >= 1 && weekday <= 5) { date = candidate; break; }
+  }
+  const starts = [
+    zonedEpoch(date, "09:45"),
+    zonedEpoch(date, "12:00"),
+    zonedEpoch(date, "18:00"),
+    zonedEpoch(date, "10:00") + 1,
+    Date.now() - 86400000,
+  ];
+  for (const start of starts) {
+    const env = environment();
+    await assert.rejects(createBooking(env, request(), payload(start)), (error: unknown) =>
+      error instanceof AppError && error.code === "expired");
+    assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM bookings").first<{n:number}>())?.n, 0);
+  }
+});
+test("the preparation buffer blocks overlap but permits the immediately following slot", async () => {
+  const env = environment(), start = futureSlot();
+  await createBooking(env, request(), payload(start));
+  await assert.rejects(createBooking(env, request(), payload(start + 60 * 60000, "b".repeat(64))), /busy/);
+  const next = await createBooking(env, request(), payload(start + 75 * 60000, "c".repeat(64)));
+  assert.equal(next.start_at, start + 75 * 60000);
+  assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM bookings").first<{n:number}>())?.n, 2);
+});
+test("concurrent retries of the same request return one booking and one notification", async () => {
+  const env = environment(), data = payload(futureSlot());
+  const results = await Promise.all([
+    createBooking(env, request(), data),
+    createBooking(env, request(), data),
+  ]);
+  assert.equal(results[0].id, results[1].id);
+  assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM bookings").first<{n:number}>())?.n, 1);
+  assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM notifications").first<{n:number}>())?.n, 1);
+  await assert.rejects(createBooking(env, request(), { ...data, name: "Другой клиент" }), /invalid/);
+});
+test("rate limits are atomic and phone limits also apply across different IP addresses", async () => {
+  const env = environment(), sameIp = request();
+  const results = await Promise.allSettled(Array.from({ length: 6 }, () =>
+    rateLimit(env, sameIp, "booking", 5, 3600)));
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 5);
+  const denied = results.find(result => result.status === "rejected") as PromiseRejectedResult;
+  assert.equal(denied.reason.status, 429);
+  for (let n = 0; n < 3; n++) await rateLimit(env, request(), "phone", 3, 86400, "+77011234567");
+  await assert.rejects(rateLimit(env, request(), "phone", 3, 86400, "+77011234567"),
+    (error: unknown) => error instanceof AppError && error.status === 429);
+  await rateLimit(env, request(), "phone", 3, 86400, "+77011234568");
+});
+test("malformed admin cookies are rejected as unauthorized without a server error", async () => {
+  const env = environment(), ctx = { waitUntil() {} } as unknown as ExecutionContext;
+  const expiry = Math.floor(Date.now() / 1000) + 3600;
+  for (const cookie of [`aru_admin=${expiry}.nonce.%`, `aru_admin=NaN.nonce.signature`]) {
+    const response = await worker.fetch(new Request("https://example.com/api/admin/bookings", {
+      headers: { Cookie: cookie },
+    }), env, ctx);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { code: "unauthorized" });
+  }
 });
 test("unknown provider response is quarantined, never retried", async () => {
   const env = environment();

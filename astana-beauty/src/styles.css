@@ -678,6 +678,15 @@ select:focus-visible {
   grid-template-columns: 1fr 1fr;
   gap: 70px;
 }
+.booking-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.booking-fields > div {
+  min-width: 0;
+}
 .field {
   display: flex;
   flex-direction: column;
@@ -1200,6 +1209,15 @@ dialog > p {
   gap: 16px;
   padding: 12px 0;
   font-size: 0.875rem;
+}
+.receipt-services li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.receipt-services li > strong {
+  flex-shrink: 0;
+  max-width: 48%;
+  text-align: right;
 }
 .receipt-services small {
   display: block;

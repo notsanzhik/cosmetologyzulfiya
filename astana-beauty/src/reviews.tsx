@@ -25,7 +25,7 @@ function ReviewImage({ src, lang }: { src: string; lang: Lang }) {
       <img src={src} alt={t.screenshot} loading="lazy" />
       <small>{t.enlarge}</small>
     </button>
-    <dialog ref={dialog} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    <dialog ref={dialog} aria-label={t.screenshot} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <button type="button" className="icon-button dialog-close" aria-label={t.close} onClick={() => dialog.current?.close()}><X /></button>
       <img src={src} alt={t.screenshot} loading="lazy" />
     </dialog>
@@ -45,12 +45,15 @@ export function ReviewsSection({ lang }: { lang: Lang }) {
   const [rows, setRows] = useState<Review[]>([]), [open, setOpen] = useState(false), [sent, setSent] = useState(false);
   const [name, setName] = useState(""), [text, setText] = useState(""), [consent, setConsent] = useState(false), [website, setWebsite] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState(""), [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
+    setLoading(true); setLoadError("");
     call<{ rows: Review[] }>("/api/reviews").then(result => { if (active) setRows(result.rows); })
-      .catch(err => { if (active) setError(errorText(err, lang)); });
+      .catch(err => { if (active) setLoadError(errorText(err, lang)); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [lang]);
+  }, [lang, reload]);
   const existing: Review[] = staticReviews.filter(r => !r.sample).map(r => ({ id: `static-${r.id}`, name: r.name, text: r.text[lang], status: "published", createdAt: 0, imageUrl: null }));
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
@@ -76,8 +79,11 @@ export function ReviewsSection({ lang }: { lang: Lang }) {
       </>}
       {error && <p className="error" role="alert">{error}</p>}
     </form>}
-    {!rows.length && !existing.length && <p className="review-empty">{f.empty}</p>}
-    <div className="review-grid">{[...rows, ...existing].map(r => <ReviewCard key={r.id} review={r} lang={lang} />)}</div>
+    {loading && <p className="review-empty" role="status"><LoaderCircle size={16} aria-hidden="true" /> {f.loading}</p>}
+    {loadError && <div className="review-empty"><p className="error" role="alert">{loadError}</p>
+      <button type="button" className="button secondary" onClick={() => setReload(n => n + 1)}>{f.retry}</button></div>}
+    {!loading && !loadError && !rows.length && !existing.length && <p className="review-empty">{f.empty}</p>}
+    <div className="review-grid" aria-busy={loading}>{[...rows, ...existing].map(r => <ReviewCard key={r.id} review={r} lang={lang} />)}</div>
   </div></section>;
 }
 

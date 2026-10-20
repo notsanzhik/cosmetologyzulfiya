@@ -3,6 +3,12 @@ import type { Env, Notification, Booking } from "./types";
 import { serviceSnapshot } from "./types";
 import { findBooking, finishCancellation } from "./bookings";
 
+class TelegramRejected extends Error {
+  constructor(public code: number, public retryAfter?: number) {
+    super("telegram_rejected");
+  }
+}
+
 export async function telegram(
   env: Env,
   method: string,
@@ -21,8 +27,21 @@ export async function telegram(
   const result = (await response.json()) as {
     ok: boolean;
     result?: { message_id?: number };
+    error_code?: number;
+    parameters?: { retry_after?: number };
   };
-  if (!response.ok || !result.ok) throw new Error("telegram_rejected");
+  if (!response.ok || !result.ok) {
+    // Повторяем только явный отказ 429: неизвестный сетевой результат может
+    // означать, что Telegram уже принял сообщение, и повтор создаст дубликат.
+    if (result.ok === false && result.error_code === 429) {
+      const seconds = result.parameters?.retry_after;
+      throw new TelegramRejected(429, typeof seconds === "number" && Number.isFinite(seconds)
+        ? Math.min(86400, Math.max(30, Math.ceil(seconds))) : 60);
+    }
+    if (result.ok === false && [400, 401, 403, 404].includes(result.error_code || 0))
+      throw new TelegramRejected(result.error_code!);
+    throw new Error("telegram_response_unknown");
+  }
   return result.result;
 }
 export async function dispatch(
@@ -98,11 +117,12 @@ export async function processNotifications(
   let processed = 0;
   for (const n of due.results) {
     const token = crypto.randomUUID();
-    // Один атомарный UPDATE: два cron не смогут получить одну задачу.
+    // Перепроверяем и статус, и срок: другой процесс мог отложить отправку
+    // после 429, пока этот процесс ещё держит старый список pending.
     const claimed = await env.DB.prepare(
-      "UPDATE notifications SET status='sending',claimed_at=?,claim_token=? WHERE id=? AND status='pending' AND EXISTS (SELECT 1 FROM bookings WHERE id=notifications.booking_id AND ((notifications.kind='cancel' AND status='cancelled') OR (notifications.kind!='cancel' AND status='confirmed')) AND (notifications.kind!='reminder' OR start_at>?)) RETURNING id",
+      "UPDATE notifications SET status='sending',claimed_at=?,claim_token=? WHERE id=? AND status='pending' AND due_at<=? AND EXISTS (SELECT 1 FROM bookings WHERE id=notifications.booking_id AND ((notifications.kind='cancel' AND status='cancelled') OR (notifications.kind!='cancel' AND status='confirmed')) AND (notifications.kind!='reminder' OR start_at>?)) RETURNING id",
     )
-      .bind(Date.now(), token, n.id, Date.now())
+      .bind(Date.now(), token, n.id, Date.now(), Date.now())
       .first();
     if (!claimed) {
       await env.DB.prepare(
@@ -113,7 +133,7 @@ export async function processNotifications(
       continue;
     }
     const b = await findBooking(env, n.booking_id);
-    let result: { status: string; error?: string; providerId?: string };
+    let result: { status: string; error?: string; providerId?: string; retryAt?: number };
     if (
       !b ||
       (n.kind !== "cancel" && b.status !== "confirmed") ||
@@ -123,23 +143,35 @@ export async function processNotifications(
     else {
       try {
         result = await dispatch(env, n, b, origin, fetcher);
-      } catch {
-        result = { status: "uncertain", error: "provider_response_unknown" };
+      } catch (error) {
+        if (error instanceof TelegramRejected && error.code === 429) {
+          result = {
+            status: "pending",
+            error: "telegram_rate_limited",
+            retryAt: Date.now() + error.retryAfter! * 1000,
+          };
+        } else if (error instanceof TelegramRejected) {
+          result = { status: "failed", error: `telegram_rejected_${error.code}` };
+        } else {
+          result = { status: "uncertain", error: "provider_response_unknown" };
+        }
       }
     }
     await env.DB.prepare(
-      "UPDATE notifications SET status=?,provider_id=COALESCE(?,provider_id),error=? WHERE id=? AND status='sending' AND claim_token=?",
+      "UPDATE notifications SET status=?,provider_id=COALESCE(?,provider_id),error=?,due_at=COALESCE(?,due_at) WHERE id=? AND status='sending' AND claim_token=?",
     )
       .bind(
         result.status,
         result.providerId || null,
         result.error || null,
+        result.retryAt || null,
         n.id,
         token,
       )
       .run();
     await finishCancellation(env, n.booking_id);
     processed++;
+    if (result.retryAt) break;
   }
   return { processed };
 }
