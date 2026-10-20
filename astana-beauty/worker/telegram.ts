@@ -4,6 +4,7 @@ import { AppError } from "./schedule";
 import { cancelBooking, findBooking } from "./bookings";
 import { telegram } from "./notifications";
 import { equalSecret, jsonBody } from "./security";
+import { captureTelegramPairing } from "./telegram-pairing";
 
 export async function handleTelegram(env: Env, request: Request) {
   if (
@@ -19,6 +20,7 @@ export async function handleTelegram(env: Env, request: Request) {
   const headers = new Headers(request.headers);
   headers.set("Content-Type", "application/json");
   const body = await jsonBody(new Request(request, { headers })) as {
+    message?: unknown;
     callback_query?: {
       id: string;
       from: { id: number };
@@ -26,6 +28,7 @@ export async function handleTelegram(env: Env, request: Request) {
       message?: { message_id: number; chat: { id: number; type: string } };
     };
   };
+  if (body.message) await captureTelegramPairing(env, body.message);
   const q = body.callback_query;
   if (!q) return;
   if (

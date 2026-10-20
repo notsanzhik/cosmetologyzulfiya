@@ -28,6 +28,7 @@ import { processNotifications } from "./notifications";
 import { handleTelegram } from "./telegram";
 import { reviewApi } from "./reviews";
 import { isAppPath } from "../src/routes";
+import { createTelegramPairing, telegramPairingStatus } from "./telegram-pairing";
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -127,6 +128,13 @@ async function api(request: Request, env: Env, ctx: ExecutionContext) {
   }
   if (path.startsWith("/api/admin/")) {
     await requireAdmin(env, request);
+    if (path === "/api/admin/telegram/pairing" && method === "POST") {
+      checkOrigin(request);
+      await rateLimit(env, request, "telegram-pairing", 6, 3600);
+      return json(await createTelegramPairing(env, (await jsonBody(request)).username), 201);
+    }
+    if (/^\/api\/admin\/telegram\/pairing\/[a-f0-9-]{36}$/.test(path) && method === "GET")
+      return json(await telegramPairingStatus(env, path.split("/").pop()!));
     if (path === "/api/admin/test-config" && method === "GET")
       return json({ ...runtimeConfig(env), bookingEnabled: true, whatsappEnabled: false });
     if (path === "/api/admin/test-bookings" && method === "POST") {

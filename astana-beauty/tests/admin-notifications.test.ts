@@ -9,6 +9,8 @@ import { handleTelegram } from "../worker/telegram";
 import { processNotifications } from "../worker/notifications";
 import worker from "../worker/index";
 import type { Env } from "../worker/types";
+import { createTelegramPairing, telegramPairingStatus } from "../worker/telegram-pairing";
+import { sessionCookie } from "../worker/security";
 
 // Только изолированная SQLite в памяти. Ни Cloudflare, ни настоящие сообщения.
 function environment(): Env {
@@ -195,4 +197,58 @@ test("malformed authenticated Telegram payloads are rejected as invalid, not tra
     method: "POST", headers: { "x-telegram-bot-api-secret-token": env.TELEGRAM_WEBHOOK_SECRET! }, body: JSON.stringify({ padding: "x".repeat(12001) }),
   }), env, ctx);
   assert.equal(tooLarge.status, 413);
+});
+
+test("Telegram pairing requires a fresh private start from the expected account and does not change notification access", async () => {
+  const env = environment();
+  const link = await createTelegramPairing(env, "@example_mom");
+  assert(link.start.length <= 64);
+  const message = {
+    text: `/start ${link.start}`, date: Math.floor(Date.now() / 1000),
+    from: { id: 456, username: "example_mom", is_bot: false },
+    chat: { id: 456, type: "private" },
+  };
+  const request = (value: object, secret = env.TELEGRAM_WEBHOOK_SECRET!) => new Request("https://example.com/api/telegram/webhook", {
+    method: "POST", headers: { "x-telegram-bot-api-secret-token": secret }, body: JSON.stringify({ message: value }),
+  });
+  await assert.rejects(handleTelegram(env, request(message, "wrong")));
+  for (const wrong of [
+    { ...message, from: { ...message.from, username: "someone_else" } },
+    { ...message, chat: { id: 456, type: "group" } },
+    { ...message, date: message.date - 3600 },
+    { ...message, text: "/start connect_" + "0".repeat(48) },
+  ]) {
+    await handleTelegram(env, request(wrong));
+    assert.equal((await telegramPairingStatus(env, link.id)).connected, false);
+  }
+  await handleTelegram(env, request(message));
+  const linked = await telegramPairingStatus(env, link.id) as { connected: boolean; chatId: string; ownerId: string };
+  assert.equal(linked.connected, true);
+  assert.equal(linked.chatId, "456");
+  assert.equal(linked.ownerId, "456");
+  await handleTelegram(env, request({ ...message, from: { ...message.from, id: 789 }, chat: { id: 789, type: "private" } }));
+  assert.equal((await telegramPairingStatus(env, link.id) as { chatId: string }).chatId, "456");
+  assert.equal(env.TELEGRAM_OWNER_ID, "123");
+  assert.equal(env.TELEGRAM_CHAT_ID, "123");
+  const expired = await createTelegramPairing(env, "example_mom");
+  await env.DB.prepare("UPDATE telegram_pairings SET expires_at=0 WHERE id=?").bind(expired.id).run();
+  await handleTelegram(env, request({ ...message, text: `/start ${expired.start}` }));
+  assert.equal((await telegramPairingStatus(env, expired.id)).connected, false);
+});
+
+test("only an authenticated same-origin administrator can issue a Telegram pairing link", async () => {
+  const env = environment();
+  const url = "https://example.com/api/admin/telegram/pairing";
+  const request = (headers: Record<string, string>) => new Request(url, {
+    method: "POST", headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify({ username: "example_mom" }),
+  });
+  const ctx = { waitUntil() {} } as unknown as ExecutionContext;
+  assert.equal((await worker.fetch(request({ Origin: "https://example.com" }), env, ctx)).status, 401);
+  const cookie = (await sessionCookie(env, new Request(url))).split(";")[0];
+  assert.equal((await worker.fetch(request({ Cookie: cookie, Origin: "https://evil.example" }), env, ctx)).status, 403);
+  const created = await worker.fetch(request({ Cookie: cookie, Origin: "https://example.com" }), env, ctx);
+  assert.equal(created.status, 201);
+  const link = await created.json() as { id: string };
+  assert.equal((await worker.fetch(new Request(url + "/" + link.id), env, ctx)).status, 401);
 });

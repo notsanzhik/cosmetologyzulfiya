@@ -43,7 +43,7 @@ if (command === "ids") {
   await call("setWebhook", {
     url: new URL("/api/telegram/webhook", url).href,
     secret_token: process.env.TELEGRAM_WEBHOOK_SECRET,
-    allowed_updates: ["callback_query"],
+    allowed_updates: ["message", "callback_query"],
   });
   console.log("Webhook установлен.");
 } else if (command === "status") {

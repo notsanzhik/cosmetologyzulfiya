@@ -89,3 +89,16 @@ export const reviews = sqliteTable("reviews", {
   createdAt: integer("created_at").notNull(),
   consentAt: integer("consent_at").notNull(),
 });
+
+// Одноразовая привязка Telegram: сама ссылка не меняет получателя записей.
+// Числовой ID подтверждается сообщением боту, затем применяется владельцем.
+export const telegramPairings = sqliteTable("telegram_pairings", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  username: text("username").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+  chatId: text("chat_id"),
+  ownerId: text("owner_id"),
+  connectedAt: integer("connected_at"),
+});
