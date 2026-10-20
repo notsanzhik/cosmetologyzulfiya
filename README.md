@@ -10,6 +10,8 @@ React, TypeScript, Vite, Cloudflare Pages и D1. Worker обслуживает �
 
 Основной код — в `astana-beauty/`. Цены и услуги — `astana-beauty/data/procedures.json`; рабочие часы и контакты — `data/config.json`; тексты — `locales/ru.json` и `locales/kk.json`. На каждую услугу внутри календаря пока выделяется 60 минут, длительность посетителям не показывается.
 
+Исходные PNG выбранного логотипа и запросы ImageGen — в [astana-beauty/design/brand](astana-beauty/design/brand/). В шапке сайта на компьютере и телефоне используется только монограмма dZ. Оптимизированные изображения и значки вкладки — в [astana-beauty/public/brand](astana-beauty/public/brand/).
+
 Для запуска установите Node.js 22.13+, в папке `astana-beauty` выполните `npm ci`, затем в Windows запустите `Start-Beauty.cmd` из корня. Подробные инструкции для других систем, Telegram и деплоя — в [START_HERE.md](START_HERE.md).
 
 Проверки в папке проекта: `npm run typecheck`, `npm test`, `npm run build`. Секреты, локальные базы и данные клиентов исключены из репозитория. Деплой выполняется вручную; GitHub сам по себе его не запускает.

@@ -1,0 +1,17 @@
+{
+  "mode": "Built-in ImageGen; approved concept 2",
+  "prompts": [
+    {
+      "key": "zulfiya_header_final",
+      "prompt": "Use case: precise-object-edit / logo-brand.\nEdit target: the supplied approved dr.zulfiya logo. Prepare its HORIZONTAL website-header version. Preserve the exact custom dZ monogram contours, the exact spelling \"dr.zulfiya\", and the wordmark's serif letterforms. Only change layout and background: place the monogram on the LEFT, wordmark on the RIGHT, vertically centered, with clear small spacing. The monogram is approximately the same height as the letters' full height. Tight horizontal lockup with modest outer padding, usable in a narrow mobile header.\nBackground MUST be truly transparent alpha. Monogram must remain fully opaque solid dusty rose #A95274; wordmark fully opaque solid charcoal #49313B. Remove paper grain and all lighting. Crisp flat solid ink, sharp edges. NO haze, glow, shadows, gradient, translucent colored areas, other symbols or additional text. Keep identity faithful to the approved image. Output only this one horizontal logo, not a mockup or sheet."
+    },
+    {
+      "key": "zulfiya_monogram_final",
+      "prompt": "Use case: background-extraction / logo-brand.\nEdit target: the supplied approved dr.zulfiya logo. Extract ONLY its upper interlocked dZ monogram, preserving the exact distinctive silhouette and inner white-space shapes. Remove the \"dr.zulfiya\" wordmark entirely. This is the browser favicon/avatar icon version. Center the monogram on a square canvas and make it occupy 86% of canvas height with balanced padding.\nTrue transparent alpha background, including the spaces between the monogram strokes. The mark itself must be fully opaque solid dusty rose #A95274, crisp flat uniform ink with sharp smooth edges. Remove paper texture. Absolutely NO glow, haze, gradients, semi-transparent strokes, shadows, light rays, backdrop or additional elements. No text below. Preserve the chosen logo's monogram identity exactly."
+    },
+    {
+      "key": "zulfiya_wordmark_final",
+      "prompt": "Use case: precise-object-edit / logo-brand. Edit target: the approved logo in the reference. Extract ONLY the bottom wordmark reading exactly \"dr.zulfiya\". Remove the upper dZ emblem entirely. Preserve the precise serif letterforms, lowercase letters, period and typography of the supplied reference. Wordmark in fully opaque solid charcoal #49313B, crisp flat smooth ink. True transparent alpha background, including all letter counters. No glow, no haze, no background, no shadows, no gradients, no texture. Center this single wordmark with very little padding in a wide landscape canvas. Do not add or change any letters, symbols or decoration. It will sit next to the separately prepared emblem in a compact mobile website header."
+    }
+  ]
+}
