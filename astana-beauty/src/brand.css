@@ -1,10 +1,10 @@
 /* В шапке только монограмма. Название ссылки остаётся доступным для скринридеров. */
-.brand.brand-logo { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; max-width: 100%; }
-.brand-logo .brand-monogram { display: block; width: 68px; height: auto; flex: 0 0 auto; }
+.brand.brand-logo { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; min-height: 48px; max-width: 100%; }
+.brand-logo .brand-monogram { display: block; width: 50px; height: auto; flex: 0 0 auto; }
 .footer-wordmark-stage > img.footer-wordmark { width: 100%; height: auto; }
 .photo-placeholder > .master-monogram { width: 160px; height: auto; }
 
 @media (max-width: 600px) {
-  .brand-logo .brand-monogram { width: 48px; }
+  .brand-logo .brand-monogram { width: 36px; }
   .photo-placeholder > .master-monogram { width: 135px; }
 }
