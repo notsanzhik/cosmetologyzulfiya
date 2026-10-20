@@ -1,23 +1,9 @@
 /* Локальные шрифты содержат русские и казахские буквы без подмены отдельных символов. */
 @font-face {
-  font-family: "Zulfiya Cormorant";
-  src: url("/fonts/cormorant-normal.woff2") format("woff2");
+  font-family: "Raleway";
+  src: url("/fonts/raleway-variable-v1.woff2") format("woff2");
   font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Zulfiya Cormorant";
-  src: url("/fonts/cormorant-italic.woff2") format("woff2");
-  font-style: italic;
-  font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Noto Sans";
-  src: url("/fonts/noto-sans.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400 700;
+  font-weight: 100 900;
   font-display: swap;
 }
 :root {
@@ -29,8 +15,8 @@
   --muted: #756c73;
   --line: #eee4e8;
   --soft: #fff8fa;
-  --display: "Zulfiya Cormorant", Georgia, serif;
-  --sans: "Noto Sans", Arial, sans-serif;
+  --display: "Raleway", Arial, sans-serif;
+  --sans: "Raleway", Arial, sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -44,6 +30,8 @@ body {
   background: #fff;
   color: var(--ink);
   font: 16px/1.7 var(--sans);
+  /* В ценах и времени используем цифры одной высоты. */
+  font-variant-numeric: lining-nums;
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -85,7 +73,7 @@ p {
 h1,
 h2 {
   font-family: var(--display);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.2;
   text-wrap: balance;
 }
@@ -106,7 +94,7 @@ em {
   font-family: var(--display);
   color: var(--deep);
   font-weight: inherit;
-  font-style: italic;
+  font-style: normal;
 }
 button:focus-visible,
 a:focus-visible,
