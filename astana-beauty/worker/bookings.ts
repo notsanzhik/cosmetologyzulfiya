@@ -1,4 +1,4 @@
-import { settings, localDate, totalAmount, type Lang } from "../src/shared";
+import { settings, localDate, totalAmount, type Lang, type Snapshot } from "../src/shared";
 import type { Env, Booking } from "./types";
 import {
   AppError,
@@ -26,6 +26,28 @@ export function publicBooking(b: Booking) {
     status: b.status,
     whatsappConsent: b.whatsapp_consent_at != null,
   };
+}
+async function bookingRequestHash(body: Record<string, unknown>, snapshot: Snapshot[]) {
+  return sha256(JSON.stringify([
+    (body.name as string).trim(),
+    body.phone,
+    body.lang,
+    snapshot,
+    body.start,
+    body.whatsappConsent === true,
+  ]));
+}
+async function matchesOriginalRequest(b: Booking, body: Record<string, unknown>) {
+  const snapshot = JSON.parse(b.services) as Snapshot[];
+  const ids = body.procedureIds;
+  if (
+    !Array.isArray(ids) ||
+    ids.length !== snapshot.length ||
+    ids.some((id, index) => id !== snapshot[index].id)
+  ) return false;
+  // Каталог мог измениться после принятия записи. Проверяем повтор по тому
+  // снимку, который реально сохранили, сохраняя исходные данные и их порядок.
+  return b.request_hash === await bookingRequestHash(body, snapshot);
 }
 export async function createBooking(
   env: Env,
@@ -57,6 +79,18 @@ export async function createBooking(
     !Number.isFinite(new Date(body.start).getTime())
   )
     throw new AppError("invalid");
+  const tokenHash = await sha256(body.token);
+  // Проверяем сохранённый результат до текущего каталога и расписания:
+  // повтор принятого запроса не должен сломаться при смене цены или длительности.
+  const existing = await env.DB.prepare(
+    "SELECT * FROM bookings WHERE token_hash=?",
+  )
+    .bind(tokenHash)
+    .first<Booking>();
+  if (existing) {
+    if (!(await matchesOriginalRequest(existing, body))) throw new AppError("invalid");
+    return publicBooking(existing);
+  }
   const procedures = selectedProcedures(body.procedureIds);
   const snapshot = procedures.map(
     ({ id, name, duration, durationConfirmed, price, priceType, placeholderPrice }) => ({
@@ -71,27 +105,7 @@ export async function createBooking(
   );
   const duration = procedures.reduce((n, p) => n + p.duration, 0),
     total = totalAmount(procedures);
-  const tokenHash = await sha256(body.token);
-  const requestHash = await sha256(
-    JSON.stringify([
-      body.name.trim(),
-      body.phone,
-      body.lang,
-      snapshot,
-      body.start,
-      body.whatsappConsent === true,
-    ]),
-  );
-  // Повтор после потери ответа возвращает ту же запись и не занимает новый слот.
-  const existing = await env.DB.prepare(
-    "SELECT * FROM bookings WHERE token_hash=?",
-  )
-    .bind(tokenHash)
-    .first<Booking>();
-  if (existing) {
-    if (existing.request_hash !== requestHash) throw new AppError("invalid");
-    return publicBooking(existing);
-  }
+  const requestHash = await bookingRequestHash(body, snapshot);
   await rateLimit(env, request, "booking", 5, 3600);
   await rateLimit(env, request, "phone", 3, 86400, body.phone);
   await validateTurnstile(env, body.turnstile, request);
@@ -142,7 +156,10 @@ export async function createBooking(
     )
       .bind(tokenHash)
       .first<Booking>();
-    if (repeated?.request_hash === requestHash) return publicBooking(repeated);
+    if (repeated) {
+      if (!(await matchesOriginalRequest(repeated, body))) throw new AppError("invalid");
+      return publicBooking(repeated);
+    }
     if (String(error).includes("UNIQUE constraint"))
       throw new AppError("busy", 409);
     throw error;

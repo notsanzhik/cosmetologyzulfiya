@@ -45,7 +45,7 @@ function environment(): Env {
 async function booking(env: Env) {
   let start = 0;
   for (let day = 1; day < 10 && !start; day++)
-    start = candidateSlots(localDate(Date.now() + day * 86400000), 60)[0] || 0;
+    start = candidateSlots(localDate(Date.now() + day * 86400000), 90)[0] || 0;
   assert(start > 0);
   return createBooking(env, new Request("https://example.com/api/bookings", {
     method: "POST", headers: { origin: "https://example.com" },

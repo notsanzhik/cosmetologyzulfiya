@@ -84,7 +84,10 @@ export function candidateSlots(
   now = Date.now(),
 ) {
   validDate(date, now);
-  if (settings.holidays.includes(date)) return [];
+  const step = settings.bookingStepMinutes;
+  if (!Number.isSafeInteger(step) || step <= 0 || step % settings.slotMinutes !== 0)
+    throw new AppError("setup", 503);
+  if ((settings.holidays as string[]).includes(date)) return [];
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const windows = settings.workingHours[
     String(weekday) as keyof typeof settings.workingHours
@@ -96,7 +99,9 @@ export function candidateSlots(
     for (
       let at = start;
       at + (duration + settings.bufferMinutes) * MIN <= end;
-      at += settings.slotMinutes * MIN
+      // Видимые начала идут по расписанию кабинета, а не по длительности
+      // корзины. 15-минутные блокировки ниже сохраняют старые записи.
+      at += step * MIN
     ) {
       if (at >= now + settings.minLeadMinutes * MIN) times.push(at);
     }

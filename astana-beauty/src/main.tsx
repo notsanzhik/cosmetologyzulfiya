@@ -89,6 +89,23 @@ const post = (body: unknown): RequestInit => ({
   method: "POST",
   body: JSON.stringify(body),
 });
+const clockTime = (timestamp: number) => new Intl.DateTimeFormat("en-GB", {
+  timeZone: settings.timezone,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+}).format(new Date(timestamp));
+const visitInterval = (start: number, duration: number) =>
+  `${clockTime(start)}–${clockTime(start + duration * 60_000)}`;
+function workingPeriods(date: string): string[][] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (settings.holidays as string[]).includes(date)) return [];
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return settings.workingHours[String(weekday) as keyof typeof settings.workingHours] || [];
+}
+const periodLength = ([from, to]: string[]) => {
+  const minutes = (time: string) => time.split(":").reduce((hours, part) => hours * 60 + Number(part), 0);
+  return minutes(to) - minutes(from);
+};
 function LangSwitch() {
   const { lang, setLang } = useText();
   return (
@@ -361,6 +378,26 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
   const earliestDate = localDate();
   const latestDate = localDate(Date.now() + settings.maxAdvanceDays * 86400000);
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= earliestDate && date <= latestDate;
+  const dayPeriods = validDate ? workingPeriods(date) : [];
+  const fitsWorkingDay = dayPeriods.some(period => periodLength(period) >= duration + settings.bufferMinutes);
+  // Предлагаем следующий подходящий по графику день. Занятость проверит API после выбора.
+  let nextFittingDate = "";
+  if (validDate && duration > 0 && slotsLoaded && !slots.some(slot => slot.available)) {
+    const from = Date.parse(`${date}T12:00:00Z`);
+    for (let offset = 1; offset <= settings.maxAdvanceDays; offset++) {
+      const candidate = new Date(from + offset * 86_400_000).toISOString().slice(0, 10);
+      if (candidate > latestDate) break;
+      if (workingPeriods(candidate).some(period => periodLength(period) >= duration + settings.bufferMinutes)) {
+        nextFittingDate = candidate;
+        break;
+      }
+    }
+  }
+  const shortDate = (value: string) => {
+    const [, month, day] = value.split("-").map(Number);
+    const weekday = new Date(`${value}T12:00:00Z`).getUTCDay();
+    return `${t.contacts.days[weekday]}, ${day} ${t.dates.months[month - 1]}`;
+  };
   useEffect(() => {
     setStart(null);
     setSlots([]);
@@ -644,6 +681,10 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                       onChange={(e) => { setDate(e.target.value); setError(""); }}
                     />
                   </label>
+                  {validDate && dayPeriods.length > 0 && <div className="booking-day-hours">
+                    <Clock3 size={17} aria-hidden="true" />
+                    <div><span>{t.services.dayHours}</span><strong>{dayPeriods.map(period => period.join("–")).join(" · ")}</strong></div>
+                  </div>}
                   <div className="slots-heading">
                     <span>{t.services.time}</span>
                     <button
@@ -655,6 +696,7 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                       {t.services.refresh}
                     </button>
                   </div>
+                  {services.length > 0 && validDate && <p className="slots-hint">{t.services.intervalHint}</p>}
                   {loading ? (
                     <p className="loading" role="status">
                       <LoaderCircle className="spinner" size={18} />
@@ -678,18 +720,24 @@ function BookingSection({ runtime, testMode = false }: { runtime: Runtime | null
                             aria-pressed={start === s.start}
                             onClick={() => { setStart(s.start); setError(""); }}
                           >
-                            {new Intl.DateTimeFormat(lang, {
-                              timeZone: settings.timezone,
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hourCycle: "h23",
-                            }).format(new Date(s.start))}
+                            <span className="slot-range">{visitInterval(s.start, duration)}</span>
+                            <span className="slot-state">{!s.available ? t.services.slotBusy : start === s.start ? t.services.slotSelected : t.services.slotAvailable}</span>
                           </button>
                         ))}
                       </div>
                       {slotsLoaded && !slots.some((s) => s.available) && (
-                        <p className="muted">{t.services.noSlots}</p>
+                        <div className="empty-slots" role="status">
+                          <CalendarDays size={21} aria-hidden="true" />
+                          <div>
+                            <p>{!dayPeriods.length ? t.services.closedDate : !fitsWorkingDay ? t.services.noWindowFits : t.services.noSlots}</p>
+                            {nextFittingDate && <button type="button" className="text-link" onClick={() => {
+                              setDate(nextFittingDate);
+                              setError("");
+                            }}>{t.services.tryDate.replace("{date}", shortDate(nextFittingDate))}<ArrowUpRight size={15} aria-hidden="true" /></button>}
+                          </div>
+                        </div>
                       )}
+                      {start !== null && <p className="chosen-interval" role="status"><Check size={17} aria-hidden="true" />{t.services.selectedInterval.replace("{interval}", visitInterval(start, duration))}</p>}
                     </>
                   )}
                 </div>
@@ -1127,7 +1175,7 @@ function Confirmation({ runtime }: { runtime: Runtime | null }) {
               </div>
               <div>
                 <dt>{t.confirmation.date}</dt>
-                <dd>{dateLabel(booking.start_at, lang)}</dd>
+                <dd>{dateLabel(booking.start_at, lang)}–{clockTime(booking.start_at + booking.duration * 60_000)}</dd>
               </div>
             </dl>
             <h3>{t.confirmation.procedures}</h3>
@@ -1356,7 +1404,7 @@ function Admin({ runtime }: { runtime: Runtime | null }) {
                   <a href={`tel:${b.phone}`}>{b.phone}</a>
                   <p>
                     <CalendarDays size={16} />
-                    {dateLabel(b.start_at, lang)}
+                    {dateLabel(b.start_at, lang)}–{clockTime(b.start_at + b.duration * 60_000)}
                   </p>
                   <p>{b.services.map((p) => p.name[lang]).join(", ")}</p>
                   <strong>

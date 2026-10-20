@@ -720,29 +720,64 @@ select:focus-visible {
 .slots-heading button {
   font-size: 0.75rem;
 }
+.booking-day-hours {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 15px;
+  background: var(--soft);
+  border-radius: 12px;
+  color: var(--deep);
+}
+.booking-day-hours > svg { flex-shrink: 0; margin-top: 4px; }
+.booking-day-hours span { display: block; font-size: .73rem; color: var(--muted); }
+.booking-day-hours strong { display: block; font-size: .85rem; font-weight: 600; }
+.slots-hint { margin: -5px 0 16px; color: var(--muted); font-size: .78rem; line-height: 1.65; }
 .slots {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .slots button {
   border: 1px solid var(--line);
-  padding: 9px;
-  border-radius: 8px;
+  min-width: 0;
+  min-height: 66px;
+  padding: 10px 7px;
+  border-radius: 12px;
   background: #fff;
   font-size: 0.875rem;
 }
+.slot-range { display: block; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; font-weight: 600; }
+.slot-state { display: block; margin-top: 1px; font-size: .68rem; color: var(--muted); }
 .slots button.chosen {
   background: var(--pink);
   border-color: var(--rose);
   color: #512a3b;
 }
+.slots button.chosen .slot-state { color: #78374f; }
 .slots button:disabled {
   background: #f5f3f4;
   color: #9f999c;
-  text-decoration: line-through;
   opacity: 0.7;
 }
+.slots button:disabled .slot-range { text-decoration: line-through; }
+.empty-slots {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: .82rem;
+}
+.empty-slots > svg { color: var(--deep); flex-shrink: 0; margin-top: 3px; }
+.empty-slots .text-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; text-align: left; font-size: .79rem; }
+.empty-slots .text-link > svg { flex-shrink: 0; }
+.chosen-interval { display: flex; align-items: center; gap: 8px; color: var(--deep); margin-top: 16px; font-size: .83rem; font-weight: 600; }
+.chosen-interval > svg { flex-shrink: 0; }
 .client-fields h4 {
   font-weight: 600;
   margin-bottom: 18px;
@@ -1724,11 +1759,12 @@ dialog > p {
     gap: 32px;
   }
   .slots {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .slots button {
     padding: 10px 4px;
-    min-height: 43px;
+    min-height: 66px;
+    font-size: .8rem;
   }
   .about-layout {
     grid-template-columns: 1fr;

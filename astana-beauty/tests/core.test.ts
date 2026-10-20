@@ -109,7 +109,7 @@ function environment(): Env {
     TWILIO_CANCEL_RU: "HXcancel",
   };
 }
-function futureSlot(duration = 60) {
+function futureSlot(duration = 90) {
   for (let days = 1; days <= 10; days++) {
     const date = localDate(Date.now() + days * 86400000);
     const result = candidateSlots(date, duration);
@@ -137,23 +137,54 @@ const payload = (start: number, token = "a".repeat(64)) => ({
   token,
 });
 
-test("Asia/Almaty conversion, holidays, lunch, preparation buffer", () => {
+test("Asia/Almaty conversion and holidays remain independent of host timezone", () => {
   assert.equal(
     new Date(zonedEpoch("2026-10-02", "10:00")).toISOString(),
     "2026-10-02T05:00:00.000Z",
   );
-  assert.equal(
-    candidateSlots("2027-01-01", 60, zonedEpoch("2026-12-31", "10:00")).length,
-    0,
-  );
-  const times = candidateSlots(
-    "2026-10-02",
-    60,
-    zonedEpoch("2026-10-01", "10:00"),
-  );
-  assert(!times.includes(zonedEpoch("2026-10-02", "12:00"))); // визит + уборка пересекают обед
-  assert(times.includes(zonedEpoch("2026-10-02", "11:45")));
-  assert.equal(occupiedSegments(times[0], 60).length, 5);
+  // Выходной в тесте задаётся явно: рабочий конфиг может не содержать праздников.
+  const holidays = settings.holidays as string[], previous = [...holidays];
+  holidays.push("2027-01-01");
+  try {
+    assert.equal(candidateSlots("2027-01-01", 90, zonedEpoch("2026-12-31", "10:00")).length, 0);
+  } finally {
+    holidays.splice(0, holidays.length, ...previous);
+  }
+});
+test("weekday slots respect both windows, the 15–18 break and exact closing time", () => {
+  const date = "2026-10-23", now = zonedEpoch("2026-10-22", "10:00");
+  assert.deepEqual(candidateSlots(date, 90, now),
+    ["13:00", "18:00", "19:30"].map(time => zonedEpoch(date, time)));
+  assert.equal(candidateSlots(date, 90, now).at(-1)! + 90 * 60000, zonedEpoch(date, "21:00"));
+  assert.deepEqual(candidateSlots(date, 180, now), [zonedEpoch(date, "18:00")]);
+  assert.deepEqual(candidateSlots(date, 270, now), []);
+});
+test("Saturday and Sunday offer consecutive 90-minute visits ending exactly at 19:00", () => {
+  const now = zonedEpoch("2026-10-22", "10:00");
+  for (const date of ["2026-10-24", "2026-10-25"]) {
+    const starts = candidateSlots(date, 90, now);
+    assert.deepEqual(starts, ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30"]
+      .map(time => zonedEpoch(date, time)));
+    assert.equal(starts.at(-1)! + 90 * 60000, zonedEpoch(date, "19:00"));
+    for (let i = 1; i < starts.length; i++) assert.equal(starts[i] - starts[i - 1], 90 * 60000);
+  }
+});
+test("longer baskets keep the fixed 90-minute start cadence and occupy their full duration", () => {
+  const date = "2026-10-24", now = zonedEpoch("2026-10-22", "10:00");
+  assert.deepEqual(candidateSlots(date, 180, now),
+    ["10:00", "11:30", "13:00", "14:30", "16:00"].map(time => zonedEpoch(date, time)));
+  assert(candidateSlots(date, 270, now).includes(zonedEpoch(date, "14:30")));
+  const at = zonedEpoch(date, "11:30");
+  assert.equal(occupiedSegments(at, 180).length, 12);
+  assert.equal(occupiedSegments(at, 180).at(-1), zonedEpoch(date, "14:15"));
+  assert(!occupiedSegments(at, 180).includes(zonedEpoch(date, "14:30")));
+  assert.equal(selectedProcedures(["nine-step-cleansing", "plasmolifting", "biorevitalization", "mesotherapy"])
+    .reduce((sum, procedure) => sum + procedure.duration, 0), 360);
+});
+test("minimum advance notice filters existing starts without shifting the booking grid", () => {
+  const date = "2026-10-24";
+  assert.equal(candidateSlots(date, 90, zonedEpoch(date, "11:00"))[0], zonedEpoch(date, "11:30"));
+  assert.equal(candidateSlots(date, 90, zonedEpoch(date, "11:01"))[0], zonedEpoch(date, "13:00"));
 });
 test("RU and KZ dates use translated months and Astana time, independent of locale support", () => {
   const at = zonedEpoch("2026-10-03", "10:00");
@@ -196,10 +227,10 @@ test("server persists minimum and unknown price snapshots; Telegram receives the
   env.NOTIFICATIONS_ENABLED = "true";
   env.WHATSAPP_ENABLED = "false";
   const b = await createBooking(env, request(), {
-    ...payload(futureSlot(180)), procedureIds: ["nine-step-cleansing", "chemical-peel", "papilloma-removal"], total: 1,
+    ...payload(futureSlot(270)), procedureIds: ["nine-step-cleansing", "chemical-peel", "papilloma-removal"], total: 1,
   });
   assert.equal(b.total, 13000);
-  assert.equal(b.duration, 180);
+  assert.equal(b.duration, 270);
   assert.equal(b.services[0].priceType, "from");
   assert.equal(b.services[0].durationConfirmed, true);
   assert.equal(b.services[2].price, null);
@@ -220,7 +251,7 @@ test("database collision rolls back the entire second booking; retry is idempote
     start = futureSlot();
   const b = await createBooking(env, request(), payload(start));
   await assert.rejects(
-    createBooking(env, request(), payload(start + 15 * 60000, "b".repeat(64))),
+    createBooking(env, request(), payload(start, "b".repeat(64))),
     /busy/,
   );
   assert.equal(
@@ -246,7 +277,7 @@ test("database collision rolls back the entire second booking; retry is idempote
   }>();
   const slots = availableSlots(
     localDate(start),
-    60,
+    90,
     new Set(occupied.results.map((x) => x.start_at)),
   );
   assert.equal(slots.find((x) => x.start === start)?.available, false);
@@ -317,8 +348,12 @@ test("server rejects slots across lunch, outside working hours and off the slot 
   const starts = [
     zonedEpoch(date, "09:45"),
     zonedEpoch(date, "12:00"),
-    zonedEpoch(date, "18:00"),
-    zonedEpoch(date, "10:00") + 1,
+    zonedEpoch(date, "14:30"),
+    zonedEpoch(date, "15:00"),
+    zonedEpoch(date, "17:30"),
+    zonedEpoch(date, "20:00"),
+    zonedEpoch(date, "18:15"),
+    zonedEpoch(date, "13:00") + 1,
     Date.now() - 86400000,
   ];
   for (const start of starts) {
@@ -328,13 +363,42 @@ test("server rejects slots across lunch, outside working hours and off the slot 
     assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM bookings").first<{n:number}>())?.n, 0);
   }
 });
-test("the preparation buffer blocks overlap but permits the immediately following slot", async () => {
-  const env = environment(), start = futureSlot();
-  await createBooking(env, request(), payload(start));
-  await assert.rejects(createBooking(env, request(), payload(start + 60 * 60000, "b".repeat(64))), /busy/);
-  const next = await createBooking(env, request(), payload(start + 75 * 60000, "c".repeat(64)));
-  assert.equal(next.start_at, start + 75 * 60000);
+test("new appointments have no extra buffer and the next 90-minute slot is bookable", async () => {
+  const env = environment(), start = futureSlot(180);
+  const first = await createBooking(env, request(), payload(start));
+  await assert.rejects(createBooking(env, request(), payload(start, "b".repeat(64))), /busy/);
+  const next = await createBooking(env, request(), payload(start + 90 * 60000, "c".repeat(64)));
+  assert.equal(next.start_at, start + 90 * 60000);
+  const stored = await findBooking(env, first.id);
+  assert.equal(stored?.end_at, next.start_at);
+  assert.equal(stored?.reserved_until, next.start_at);
   assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM bookings").first<{n:number}>())?.n, 2);
+});
+test("legacy 60-minute bookings with 15-minute buffers still block overlap and cancel cleanly", async () => {
+  const env = environment();
+  let date = "";
+  for (let days = 1; days <= 7; days++) {
+    const candidate = localDate(Date.now() + days * 86400000);
+    if (new Date(`${candidate}T12:00:00Z`).getUTCDay() === 6) { date = candidate; break; }
+  }
+  // Восстанавливаем формат уже существующей записи до смены расписания.
+  const id = crypto.randomUUID(), start = zonedEpoch(date, "10:45");
+  const end = start + 60 * 60000, reserved = end + 15 * 60000;
+  await env.DB.prepare("INSERT INTO bookings (id,token_hash,request_hash,name,phone,lang,services,total,duration,start_at,end_at,reserved_until,status,consent_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, "legacy-token", "legacy-request", "Существующий клиент", "+77011234568", "ru", "[]", 8000, 60,
+      start, end, reserved, "confirmed", Date.now(), Date.now()).run();
+  for (let at = start; at < reserved; at += 15 * 60000)
+    await env.DB.prepare("INSERT INTO occupancy (start_at,booking_id) VALUES (?,?)").bind(at, id).run();
+  const occupied = await env.DB.prepare("SELECT start_at FROM occupancy").all<{start_at:number}>();
+  const slots = availableSlots(date, 90, new Set(occupied.results.map(row => row.start_at)));
+  assert.equal(slots.find(slot => slot.start === zonedEpoch(date, "10:00"))?.available, false);
+  assert.equal(slots.find(slot => slot.start === zonedEpoch(date, "11:30"))?.available, false);
+  assert.equal(slots.find(slot => slot.start === zonedEpoch(date, "13:00"))?.available, true);
+  await assert.rejects(createBooking(env, request(), payload(zonedEpoch(date, "11:30"))), /busy/);
+  assert.equal((await findBooking(env, id))?.reserved_until, reserved);
+  await cancelBooking(env, id);
+  const replacement = await createBooking(env, request(), payload(zonedEpoch(date, "11:30")));
+  assert.equal(replacement.start_at, zonedEpoch(date, "11:30"));
 });
 test("concurrent retries of the same request return one booking and one notification", async () => {
   const env = environment(), data = payload(futureSlot());
