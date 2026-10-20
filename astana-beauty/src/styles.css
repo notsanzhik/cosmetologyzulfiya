@@ -328,7 +328,7 @@ select:focus-visible {
 }
 .vertical-label {
   position: absolute;
-  right: -26px;
+  right: -18px;
   top: 125px;
   writing-mode: vertical-rl;
   letter-spacing: 0.3em;
